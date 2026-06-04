@@ -1,5 +1,9 @@
 # JSON API
 
+Machine-readable version: OpenAPI spec at `<BASE_URL>/openapi.json`
+(source: `public/openapi.json`), browsable Swagger UI at `<BASE_URL>/api-docs`.
+Keep `public/openapi.json` in sync when changing endpoints.
+
 Base URL and token: read `BASE_URL` and `API_TOKEN` from `.dev.vars`
 (gitignored). Every request needs:
 
