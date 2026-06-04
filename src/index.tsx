@@ -6,11 +6,13 @@ import { createSessionToken, verifySessionToken, SESSION_TTL_SECONDS } from './a
 import { findDueItems, runReminderCheck } from './reminders'
 import { fuelLog } from './fuel'
 import {
-  Dashboard, LoginPage, SessionPage, VehiclePage,
-  VehicleRow, SessionRow, ItemRow, DueRow,
+  Dashboard, LoginPage, VisitPage, VehiclePage,
+  VehicleRow, VisitRow, ItemRow, AttachmentRow, DueRow,
 } from './views'
 
 const CATEGORIES = ['rutin', 'aksesoris', 'administratif'] as const
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
+const ATTACHMENT_TYPES = /^(image\/|application\/pdf$)/
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -48,27 +50,41 @@ function needIsoDate(value: string, name: string): string {
   return value
 }
 
+const LATEST_KM_SQL = `(SELECT MAX(mk) FROM (
+  SELECT MAX(vi.odometer_km) AS mk FROM visits vi WHERE vi.vehicle_id = v.id
+  UNION ALL
+  SELECT MAX(o.odometer_km) FROM odometer_logs o WHERE o.vehicle_id = v.id
+))`
+
+const VEHICLE_SQL = `
+  SELECT v.id, v.name, v.status,
+    ${LATEST_KM_SQL} AS latest_km,
+    (SELECT MAX(vi.date) FROM visits vi WHERE vi.vehicle_id = v.id) AS last_date,
+    (SELECT COUNT(*) FROM visits vi WHERE vi.vehicle_id = v.id) AS visit_count,
+    (SELECT COALESCE(SUM(li.total), 0) FROM line_items li
+      JOIN visits vi ON vi.id = li.visit_id WHERE vi.vehicle_id = v.id) AS spend
+  FROM vehicles v`
+
+const VISIT_SQL = `
+  SELECT vi.id, vi.vehicle_id, vi.date, vi.odometer_km, vi.vendor, vi.label,
+    (SELECT COUNT(*) FROM line_items li WHERE li.visit_id = vi.id) AS item_count,
+    (SELECT COALESCE(SUM(li.total), 0) FROM line_items li WHERE li.visit_id = vi.id) AS total
+  FROM visits vi`
+
 async function getVehicle(env: Env, id: number): Promise<VehicleRow> {
-  const row = await env.DB.prepare(`
-    SELECT v.id, v.name, v.status,
-      (SELECT MAX(mk) FROM (
-         SELECT MAX(s.odometer_km) AS mk FROM sessions s WHERE s.vehicle_id = v.id
-         UNION ALL
-         SELECT MAX(o.odometer_km) FROM odometer_logs o WHERE o.vehicle_id = v.id
-      )) AS latest_km,
-      (SELECT MAX(date) FROM sessions s WHERE s.vehicle_id = v.id) AS last_date,
-      (SELECT COUNT(*) FROM sessions s WHERE s.vehicle_id = v.id) AS session_count,
-      (SELECT COALESCE(SUM(total), 0) FROM line_items li WHERE li.vehicle_id = v.id) AS spend
-    FROM vehicles v WHERE v.id = ?
-  `).bind(id).first<VehicleRow>()
+  const row = await env.DB.prepare(`${VEHICLE_SQL} WHERE v.id = ?`).bind(id).first<VehicleRow>()
   if (!row) throw new HTTPException(404, { message: `vehicle ${id} not found` })
   return row
 }
 
+async function getVisit(env: Env, id: number): Promise<VisitRow> {
+  const row = await env.DB.prepare(`${VISIT_SQL} WHERE vi.id = ?`).bind(id).first<VisitRow>()
+  if (!row) throw new HTTPException(404, { message: `visit ${id} not found` })
+  return row
+}
+
 type InsertItem = {
-  vehicle_id: number
-  session_id: number | null
-  date: string | null
+  visit_id: number
   description: string
   unit_price: number
   qty: number
@@ -81,13 +97,71 @@ type InsertItem = {
 
 function insertItemStmt(env: Env, it: InsertItem) {
   return env.DB.prepare(`
-    INSERT INTO line_items (vehicle_id, session_id, date, description, unit_price, qty,
-      total, category, checkpoint_note, due_date, due_km, checkpoint_done)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+    INSERT INTO line_items (visit_id, description, unit_price, qty, total, category,
+      checkpoint_note, due_date, due_km, checkpoint_done)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
   `).bind(
-    it.vehicle_id, it.session_id, it.date, it.description, it.unit_price, it.qty,
-    it.total, it.category, it.checkpoint_note, it.due_date, it.due_km,
+    it.visit_id, it.description, it.unit_price, it.qty, it.total, it.category,
+    it.checkpoint_note, it.due_date, it.due_km,
   )
+}
+
+async function insertVisit(
+  env: Env, vehicleId: number,
+  v: { date: string; odometer_km: number | null; vendor: string | null; label: string | null },
+): Promise<number> {
+  const result = await env.DB.prepare(
+    'INSERT INTO visits (vehicle_id, date, odometer_km, vendor, label) VALUES (?, ?, ?, ?, ?)',
+  ).bind(vehicleId, v.date, v.odometer_km, v.vendor, v.label).run()
+  return result.meta.last_row_id as number
+}
+
+async function storeAttachments(env: Env, visitId: number, files: File[]): Promise<AttachmentRow[]> {
+  if (files.length === 0) throw new HTTPException(400, { message: 'no files uploaded' })
+  const stored: AttachmentRow[] = []
+  for (const file of files) {
+    if (!ATTACHMENT_TYPES.test(file.type)) {
+      throw new HTTPException(400, { message: `unsupported file type: ${file.type} (${file.name})` })
+    }
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      throw new HTTPException(400, { message: `file too large (max 10 MB): ${file.name}` })
+    }
+    const key = `visits/${visitId}/${crypto.randomUUID()}-${file.name}`
+    await env.RECEIPTS.put(key, file.stream(), {
+      httpMetadata: { contentType: file.type },
+    })
+    const result = await env.DB.prepare(`
+      INSERT INTO attachments (visit_id, r2_key, filename, content_type, size, uploaded_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(visitId, key, file.name, file.type, file.size, new Date().toISOString()).run()
+    stored.push({
+      id: result.meta.last_row_id as number,
+      visit_id: visitId, filename: file.name, content_type: file.type,
+      size: file.size, uploaded_at: new Date().toISOString(),
+    })
+  }
+  return stored
+}
+
+function formFiles(body: Record<string, unknown>): File[] {
+  const raw = body['files']
+  const list = Array.isArray(raw) ? raw : [raw]
+  return list.filter((f): f is File => f instanceof File)
+}
+
+async function serveAttachment(env: Env, id: number): Promise<Response> {
+  const meta = await env.DB.prepare('SELECT r2_key, filename, content_type FROM attachments WHERE id = ?')
+    .bind(id).first<{ r2_key: string; filename: string; content_type: string }>()
+  if (!meta) throw new HTTPException(404, { message: `attachment ${id} not found` })
+  const obj = await env.RECEIPTS.get(meta.r2_key)
+  if (!obj) throw new HTTPException(404, { message: `attachment object missing in storage: ${meta.r2_key}` })
+  return new Response(obj.body, {
+    headers: {
+      'Content-Type': meta.content_type,
+      'Content-Disposition': `inline; filename="${meta.filename.replace(/"/g, '')}"`,
+      'Cache-Control': 'private, max-age=31536000',
+    },
+  })
 }
 
 // ---------- API (Bearer token, JSON) ----------
@@ -139,7 +213,7 @@ function jsonOptNumber(obj: Record<string, unknown>, key: string): number | null
   return v
 }
 
-function parseApiItem(raw: unknown, vehicleId: number, sessionId: number | null): InsertItem {
+function parseApiItem(raw: unknown, visitId: number): InsertItem {
   if (typeof raw !== 'object' || raw === null) {
     throw new HTTPException(400, { message: 'item must be an object' })
   }
@@ -152,14 +226,10 @@ function parseApiItem(raw: unknown, vehicleId: number, sessionId: number | null)
   if (!CATEGORIES.includes(category as typeof CATEGORIES[number])) {
     throw new HTTPException(400, { message: `category must be one of: ${CATEGORIES.join(', ')}` })
   }
-  const date = jsonOptString(obj, 'date')
-  if (date !== null) needIsoDate(date, 'date')
   const dueDate = jsonOptString(obj, 'due_date')
   if (dueDate !== null) needIsoDate(dueDate, 'due_date')
   return {
-    vehicle_id: vehicleId,
-    session_id: sessionId,
-    date,
+    visit_id: visitId,
     description,
     unit_price: unitPrice,
     qty,
@@ -172,17 +242,7 @@ function parseApiItem(raw: unknown, vehicleId: number, sessionId: number | null)
 }
 
 api.get('/vehicles', async (c) => {
-  const { results } = await c.env.DB.prepare(`
-    SELECT v.id, v.name, v.status,
-      (SELECT MAX(mk) FROM (
-         SELECT MAX(s.odometer_km) AS mk FROM sessions s WHERE s.vehicle_id = v.id
-         UNION ALL
-         SELECT MAX(o.odometer_km) FROM odometer_logs o WHERE o.vehicle_id = v.id
-      )) AS latest_km,
-      (SELECT COUNT(*) FROM sessions s WHERE s.vehicle_id = v.id) AS session_count,
-      (SELECT COALESCE(SUM(total), 0) FROM line_items li WHERE li.vehicle_id = v.id) AS spend
-    FROM vehicles v ORDER BY v.id
-  `).all()
+  const { results } = await c.env.DB.prepare(`${VEHICLE_SQL} ORDER BY v.id`).all()
   return c.json(results)
 })
 
@@ -197,79 +257,69 @@ api.post('/vehicles', async (c) => {
 api.get('/vehicles/:id', async (c) => {
   const id = needInt(c.req.param('id'), 'id')
   const vehicle = await getVehicle(c.env, id)
-  const { results: sessions } = await c.env.DB.prepare(`
-    SELECT s.id, s.seq, s.date, s.odometer_km,
-      (SELECT COUNT(*) FROM line_items li WHERE li.session_id = s.id) AS item_count,
-      (SELECT COALESCE(SUM(total), 0) FROM line_items li WHERE li.session_id = s.id) AS total
-    FROM sessions s WHERE s.vehicle_id = ? ORDER BY s.seq
-  `).bind(id).all()
-  return c.json({ ...vehicle, sessions })
-})
-
-api.get('/sessions/:id', async (c) => {
-  const id = needInt(c.req.param('id'), 'id')
-  const session = await c.env.DB.prepare('SELECT * FROM sessions WHERE id = ?').bind(id).first()
-  if (!session) throw new HTTPException(404, { message: `session ${id} not found` })
-  const { results: items } = await c.env.DB.prepare(
-    'SELECT * FROM line_items WHERE session_id = ? ORDER BY id',
+  const { results: visits } = await c.env.DB.prepare(
+    `${VISIT_SQL} WHERE vi.vehicle_id = ? ORDER BY vi.date DESC, vi.id DESC`,
   ).bind(id).all()
-  return c.json({ ...session, items })
+  return c.json({ ...vehicle, visits })
 })
 
-// Batch create: a session plus its line items in one call (receipt-friendly).
-api.post('/vehicles/:id/sessions', async (c) => {
+api.get('/visits/:id', async (c) => {
+  const id = needInt(c.req.param('id'), 'id')
+  const visit = await getVisit(c.env, id)
+  const { results: items } = await c.env.DB.prepare(
+    'SELECT * FROM line_items WHERE visit_id = ? ORDER BY id',
+  ).bind(id).all()
+  const { results: attachments } = await c.env.DB.prepare(
+    'SELECT id, visit_id, filename, content_type, size, uploaded_at FROM attachments WHERE visit_id = ? ORDER BY id',
+  ).bind(id).all()
+  return c.json({ ...visit, items, attachments })
+})
+
+// Create a visit with its line items in one call (receipt entry).
+api.post('/vehicles/:id/visits', async (c) => {
   const vehicleId = needInt(c.req.param('id'), 'id')
   await getVehicle(c.env, vehicleId)
   const body = await c.req.json<Record<string, unknown>>()
   const date = needIsoDate(jsonString(body, 'date'), 'date')
-  const odometerKm = jsonNumber(body, 'odometer_km')
   if (!Array.isArray(body.items)) {
     throw new HTTPException(400, { message: 'items must be an array (may be empty)' })
   }
-
-  const seqRow = await c.env.DB.prepare(
-    'SELECT COALESCE(MAX(seq), 0) + 1 AS next_seq FROM sessions WHERE vehicle_id = ?',
-  ).bind(vehicleId).first<{ next_seq: number }>()
-  const seq = seqRow!.next_seq
-
-  const result = await c.env.DB.prepare(
-    'INSERT INTO sessions (vehicle_id, seq, date, odometer_km) VALUES (?, ?, ?, ?)',
-  ).bind(vehicleId, seq, date, odometerKm).run()
-  const sessionId = result.meta.last_row_id as number
-
-  const items = body.items.map((raw) => parseApiItem(raw, vehicleId, sessionId))
+  const visitId = await insertVisit(c.env, vehicleId, {
+    date,
+    odometer_km: jsonOptNumber(body, 'odometer_km'),
+    vendor: jsonOptString(body, 'vendor'),
+    label: jsonOptString(body, 'label'),
+  })
+  const items = body.items.map((raw) => parseApiItem(raw, visitId))
   if (items.length > 0) {
     await c.env.DB.batch(items.map((it) => insertItemStmt(c.env, it)))
   }
-  return c.json({ id: sessionId, vehicle_id: vehicleId, seq, date, odometer_km: odometerKm, item_count: items.length }, 201)
+  return c.json({ id: visitId, vehicle_id: vehicleId, date, item_count: items.length }, 201)
 })
 
-// Append items to an existing session.
-api.post('/sessions/:id/items', async (c) => {
-  const sessionId = needInt(c.req.param('id'), 'id')
-  const session = await c.env.DB.prepare('SELECT * FROM sessions WHERE id = ?')
-    .bind(sessionId).first<{ vehicle_id: number }>()
-  if (!session) throw new HTTPException(404, { message: `session ${sessionId} not found` })
+api.post('/visits/:id/items', async (c) => {
+  const visitId = needInt(c.req.param('id'), 'id')
+  await getVisit(c.env, visitId)
   const body = await c.req.json<Record<string, unknown>>()
   if (!Array.isArray(body.items) || body.items.length === 0) {
     throw new HTTPException(400, { message: 'items must be a non-empty array' })
   }
-  const items = body.items.map((raw) => parseApiItem(raw, session.vehicle_id, sessionId))
+  const items = body.items.map((raw) => parseApiItem(raw, visitId))
   await c.env.DB.batch(items.map((it) => insertItemStmt(c.env, it)))
-  return c.json({ session_id: sessionId, inserted: items.length }, 201)
+  return c.json({ visit_id: visitId, inserted: items.length }, 201)
 })
 
-// Sessionless expenses (aksesoris / administratif).
-api.post('/vehicles/:id/items', async (c) => {
-  const vehicleId = needInt(c.req.param('id'), 'id')
-  await getVehicle(c.env, vehicleId)
-  const body = await c.req.json<Record<string, unknown>>()
-  if (!Array.isArray(body.items) || body.items.length === 0) {
-    throw new HTTPException(400, { message: 'items must be a non-empty array' })
-  }
-  const items = body.items.map((raw) => parseApiItem(raw, vehicleId, null))
-  await c.env.DB.batch(items.map((it) => insertItemStmt(c.env, it)))
-  return c.json({ vehicle_id: vehicleId, inserted: items.length }, 201)
+// Receipt photos: multipart/form-data, field "files" (repeatable).
+api.post('/visits/:id/attachments', async (c) => {
+  const visitId = needInt(c.req.param('id'), 'id')
+  await getVisit(c.env, visitId)
+  const body = await c.req.parseBody({ all: true })
+  const stored = await storeAttachments(c.env, visitId, formFiles(body))
+  return c.json({ visit_id: visitId, uploaded: stored.map(({ id, filename, size }) => ({ id, filename, size })) }, 201)
+})
+
+api.get('/attachments/:id', async (c) => {
+  return serveAttachment(c.env, needInt(c.req.param('id'), 'id'))
 })
 
 // Odometer / fuel log. liters+total present = refuel entry, both absent =
@@ -347,20 +397,9 @@ app.use('*', async (c, next) => {
 // ---------- web pages ----------
 
 app.get('/', async (c) => {
-  const { results: vehicles } = await c.env.DB.prepare(`
-    SELECT v.id, v.name, v.status,
-      (SELECT MAX(mk) FROM (
-         SELECT MAX(s.odometer_km) AS mk FROM sessions s WHERE s.vehicle_id = v.id
-         UNION ALL
-         SELECT MAX(o.odometer_km) FROM odometer_logs o WHERE o.vehicle_id = v.id
-      )) AS latest_km,
-      (SELECT MAX(date) FROM sessions s WHERE s.vehicle_id = v.id) AS last_date,
-      (SELECT COUNT(*) FROM sessions s WHERE s.vehicle_id = v.id) AS session_count,
-      (SELECT COALESCE(SUM(total), 0) FROM line_items li WHERE li.vehicle_id = v.id) AS spend
-    FROM vehicles v
-    ORDER BY v.status = 'active' DESC, v.id
-  `).all<VehicleRow>()
-
+  const { results: vehicles } = await c.env.DB.prepare(
+    `${VEHICLE_SQL} ORDER BY v.status = 'active' DESC, v.id`,
+  ).all<VehicleRow>()
   const due: DueRow[] = await findDueItems(c.env, new Date())
   return c.html(<Dashboard vehicles={vehicles} due={due} />)
 })
@@ -376,17 +415,11 @@ app.post('/vehicles', async (c) => {
 app.get('/vehicles/:id', async (c) => {
   const id = needInt(c.req.param('id'), 'id')
   const vehicle = await getVehicle(c.env, id)
-  const { results: sessions } = await c.env.DB.prepare(`
-    SELECT s.id, s.vehicle_id, s.seq, s.date, s.odometer_km,
-      (SELECT COUNT(*) FROM line_items li WHERE li.session_id = s.id) AS item_count,
-      (SELECT COALESCE(SUM(total), 0) FROM line_items li WHERE li.session_id = s.id) AS total
-    FROM sessions s WHERE s.vehicle_id = ? ORDER BY s.seq DESC
-  `).bind(id).all<SessionRow>()
-  const { results: extras } = await c.env.DB.prepare(
-    'SELECT * FROM line_items WHERE vehicle_id = ? AND session_id IS NULL ORDER BY date, id',
-  ).bind(id).all<ItemRow>()
+  const { results: visits } = await c.env.DB.prepare(
+    `${VISIT_SQL} WHERE vi.vehicle_id = ? ORDER BY vi.date DESC, vi.id DESC`,
+  ).bind(id).all<VisitRow>()
   const fuel = await fuelLog(c.env, id)
-  return c.html(<VehiclePage vehicle={vehicle} sessions={sessions} extras={extras} fuel={fuel} />)
+  return c.html(<VehiclePage vehicle={vehicle} visits={visits} fuel={fuel} />)
 })
 
 app.post('/vehicles/:id/status', async (c) => {
@@ -401,87 +434,79 @@ app.post('/vehicles/:id/status', async (c) => {
   return c.redirect(`/vehicles/${id}`)
 })
 
-app.post('/vehicles/:id/sessions', async (c) => {
+app.post('/vehicles/:id/visits', async (c) => {
   const vehicleId = needInt(c.req.param('id'), 'id')
   await getVehicle(c.env, vehicleId)
   const form = await c.req.formData()
-  const date = needIsoDate(need(form, 'date'), 'date')
-  const odometerKm = needInt(need(form, 'odometer_km'), 'odometer_km')
-  const seqRow = await c.env.DB.prepare(
-    'SELECT COALESCE(MAX(seq), 0) + 1 AS next_seq FROM sessions WHERE vehicle_id = ?',
-  ).bind(vehicleId).first<{ next_seq: number }>()
-  const result = await c.env.DB.prepare(
-    'INSERT INTO sessions (vehicle_id, seq, date, odometer_km) VALUES (?, ?, ?, ?)',
-  ).bind(vehicleId, seqRow!.next_seq, date, odometerKm).run()
-  return c.redirect(`/sessions/${result.meta.last_row_id}`)
+  const odoRaw = optionalField(form, 'odometer_km')
+  const visitId = await insertVisit(c.env, vehicleId, {
+    date: needIsoDate(need(form, 'date'), 'date'),
+    odometer_km: odoRaw === null ? null : needInt(odoRaw, 'odometer_km'),
+    vendor: optionalField(form, 'vendor'),
+    label: optionalField(form, 'label'),
+  })
+  return c.redirect(`/visits/${visitId}`)
 })
 
-app.get('/sessions/:id', async (c) => {
+app.get('/visits/:id', async (c) => {
   const id = needInt(c.req.param('id'), 'id')
-  const session = await c.env.DB.prepare(`
-    SELECT s.id, s.vehicle_id, s.seq, s.date, s.odometer_km,
-      (SELECT COUNT(*) FROM line_items li WHERE li.session_id = s.id) AS item_count,
-      (SELECT COALESCE(SUM(total), 0) FROM line_items li WHERE li.session_id = s.id) AS total
-    FROM sessions s WHERE s.id = ?
-  `).bind(id).first<SessionRow>()
-  if (!session) throw new HTTPException(404, { message: `session ${id} not found` })
-  const vehicle = await getVehicle(c.env, session.vehicle_id)
+  const visit = await getVisit(c.env, id)
+  const vehicle = await getVehicle(c.env, visit.vehicle_id)
   const { results: items } = await c.env.DB.prepare(
-    'SELECT * FROM line_items WHERE session_id = ? ORDER BY date, id',
+    'SELECT * FROM line_items WHERE visit_id = ? ORDER BY id',
   ).bind(id).all<ItemRow>()
-  return c.html(<SessionPage vehicle={vehicle} session={session} items={items} />)
+  const { results: attachments } = await c.env.DB.prepare(
+    'SELECT id, visit_id, filename, content_type, size, uploaded_at FROM attachments WHERE visit_id = ? ORDER BY id',
+  ).bind(id).all<AttachmentRow>()
+  return c.html(<VisitPage vehicle={vehicle} visit={visit} items={items} attachments={attachments} />)
 })
 
-app.post('/sessions/:id/items', async (c) => {
-  const sessionId = needInt(c.req.param('id'), 'id')
-  const session = await c.env.DB.prepare('SELECT vehicle_id FROM sessions WHERE id = ?')
-    .bind(sessionId).first<{ vehicle_id: number }>()
-  if (!session) throw new HTTPException(404, { message: `session ${sessionId} not found` })
+app.post('/visits/:id/items', async (c) => {
+  const visitId = needInt(c.req.param('id'), 'id')
+  await getVisit(c.env, visitId)
   const form = await c.req.formData()
+  const category = need(form, 'category')
+  if (!CATEGORIES.includes(category as typeof CATEGORIES[number])) {
+    throw new HTTPException(400, { message: `invalid category: ${category}` })
+  }
   const unitPrice = needNum(need(form, 'unit_price'), 'unit_price')
   const qty = needNum(need(form, 'qty'), 'qty')
   const dueDateRaw = optionalField(form, 'due_date')
   const dueKmRaw = optionalField(form, 'due_km')
   await insertItemStmt(c.env, {
-    vehicle_id: session.vehicle_id,
-    session_id: sessionId,
-    date: needIsoDate(need(form, 'date'), 'date'),
-    description: need(form, 'description'),
-    unit_price: unitPrice,
-    qty,
-    total: Math.round(unitPrice * qty),
-    category: 'rutin',
-    checkpoint_note: optionalField(form, 'checkpoint_note'),
-    due_date: dueDateRaw === null ? null : needIsoDate(dueDateRaw, 'due_date'),
-    due_km: dueKmRaw === null ? null : needInt(dueKmRaw, 'due_km'),
-  }).run()
-  return c.redirect(`/sessions/${sessionId}`)
-})
-
-app.post('/vehicles/:id/items', async (c) => {
-  const vehicleId = needInt(c.req.param('id'), 'id')
-  await getVehicle(c.env, vehicleId)
-  const form = await c.req.formData()
-  const category = need(form, 'category')
-  if (category !== 'aksesoris' && category !== 'administratif') {
-    throw new HTTPException(400, { message: `invalid category: ${category}` })
-  }
-  const unitPrice = needNum(need(form, 'unit_price'), 'unit_price')
-  const qty = needNum(need(form, 'qty'), 'qty')
-  await insertItemStmt(c.env, {
-    vehicle_id: vehicleId,
-    session_id: null,
-    date: needIsoDate(need(form, 'date'), 'date'),
+    visit_id: visitId,
     description: need(form, 'description'),
     unit_price: unitPrice,
     qty,
     total: Math.round(unitPrice * qty),
     category,
-    checkpoint_note: null,
-    due_date: null,
-    due_km: null,
+    checkpoint_note: optionalField(form, 'checkpoint_note'),
+    due_date: dueDateRaw === null ? null : needIsoDate(dueDateRaw, 'due_date'),
+    due_km: dueKmRaw === null ? null : needInt(dueKmRaw, 'due_km'),
   }).run()
-  return c.redirect(`/vehicles/${vehicleId}`)
+  return c.redirect(`/visits/${visitId}`)
+})
+
+app.post('/visits/:id/attachments', async (c) => {
+  const visitId = needInt(c.req.param('id'), 'id')
+  await getVisit(c.env, visitId)
+  const body = await c.req.parseBody({ all: true })
+  await storeAttachments(c.env, visitId, formFiles(body))
+  return c.redirect(`/visits/${visitId}`)
+})
+
+app.get('/attachments/:id', async (c) => {
+  return serveAttachment(c.env, needInt(c.req.param('id'), 'id'))
+})
+
+app.post('/attachments/:id/delete', async (c) => {
+  const id = needInt(c.req.param('id'), 'id')
+  const meta = await c.env.DB.prepare('SELECT visit_id, r2_key FROM attachments WHERE id = ?')
+    .bind(id).first<{ visit_id: number; r2_key: string }>()
+  if (!meta) throw new HTTPException(404, { message: `attachment ${id} not found` })
+  await c.env.RECEIPTS.delete(meta.r2_key)
+  await c.env.DB.prepare('DELETE FROM attachments WHERE id = ?').bind(id).run()
+  return c.redirect(`/visits/${meta.visit_id}`)
 })
 
 app.post('/vehicles/:id/odometer', async (c) => {
@@ -517,21 +542,21 @@ app.post('/odometer/:id/delete', async (c) => {
 
 app.post('/items/:id/done', async (c) => {
   const id = needInt(c.req.param('id'), 'id')
-  const item = await c.env.DB.prepare('SELECT session_id, vehicle_id FROM line_items WHERE id = ?')
-    .bind(id).first<{ session_id: number | null; vehicle_id: number }>()
+  const item = await c.env.DB.prepare('SELECT visit_id FROM line_items WHERE id = ?')
+    .bind(id).first<{ visit_id: number }>()
   if (!item) throw new HTTPException(404, { message: `item ${id} not found` })
   await c.env.DB.prepare('UPDATE line_items SET checkpoint_done = 1 WHERE id = ?').bind(id).run()
   const back = c.req.header('Referer')
-  return c.redirect(back ?? (item.session_id !== null ? `/sessions/${item.session_id}` : `/vehicles/${item.vehicle_id}`))
+  return c.redirect(back ?? `/visits/${item.visit_id}`)
 })
 
 app.post('/items/:id/delete', async (c) => {
   const id = needInt(c.req.param('id'), 'id')
-  const item = await c.env.DB.prepare('SELECT session_id, vehicle_id FROM line_items WHERE id = ?')
-    .bind(id).first<{ session_id: number | null; vehicle_id: number }>()
+  const item = await c.env.DB.prepare('SELECT visit_id FROM line_items WHERE id = ?')
+    .bind(id).first<{ visit_id: number }>()
   if (!item) throw new HTTPException(404, { message: `item ${id} not found` })
   await c.env.DB.prepare('DELETE FROM line_items WHERE id = ?').bind(id).run()
-  return c.redirect(item.session_id !== null ? `/sessions/${item.session_id}` : `/vehicles/${item.vehicle_id}`)
+  return c.redirect(`/visits/${item.visit_id}`)
 })
 
 // ---------- error handling ----------

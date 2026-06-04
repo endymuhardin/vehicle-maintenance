@@ -1,6 +1,7 @@
 export type Env = {
   DB: D1Database
   ASSETS: Fetcher
+  RECEIPTS: R2Bucket
   APP_PASSWORD: string
   SESSION_SECRET: string
   API_TOKEN: string

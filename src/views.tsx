@@ -7,24 +7,24 @@ export type VehicleRow = {
   status: 'active' | 'sold'
   latest_km: number | null
   last_date: string | null
-  session_count: number
+  visit_count: number
   spend: number
 }
 
-export type SessionRow = {
+export type VisitRow = {
   id: number
   vehicle_id: number
-  seq: number
   date: string
-  odometer_km: number
+  odometer_km: number | null
+  vendor: string | null
+  label: string | null
   item_count: number
   total: number
 }
 
 export type ItemRow = {
   id: number
-  session_id: number | null
-  date: string | null
+  visit_id: number
   description: string
   unit_price: number
   qty: number
@@ -34,6 +34,15 @@ export type ItemRow = {
   due_date: string | null
   due_km: number | null
   checkpoint_done: number
+}
+
+export type AttachmentRow = {
+  id: number
+  visit_id: number
+  filename: string
+  content_type: string
+  size: number
+  uploaded_at: string
 }
 
 export type DueRow = {
@@ -47,7 +56,7 @@ export type DueRow = {
   overdue: boolean
 }
 
-export const rupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`
+export const rupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des']
 export function tanggal(iso: string): string {
@@ -62,19 +71,23 @@ const Odometer: FC<{ km: number }> = ({ km }) => (
   </span>
 )
 
+const Head: FC<{ title: string }> = ({ title }) => (
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title} · Garasi</title>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap"
+    />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+)
+
 export const Layout: FC<{ title: string; children?: Child }> = ({ title, children }) => (
   <html lang="id">
-    <head>
-      <meta charset="utf-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <title>{title} · Garasi</title>
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap"
-      />
-      <link rel="stylesheet" href="/style.css" />
-    </head>
+    <Head title={title} />
     <body>
       <header class="topbar">
         <a href="/" class="wordmark">GARASI<span class="wordmark-dot">●</span>LOG</a>
@@ -89,17 +102,7 @@ export const Layout: FC<{ title: string; children?: Child }> = ({ title, childre
 
 export const LoginPage: FC<{ error?: string }> = ({ error }) => (
   <html lang="id">
-    <head>
-      <meta charset="utf-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <title>Masuk · Garasi</title>
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap"
-      />
-      <link rel="stylesheet" href="/style.css" />
-    </head>
+    <Head title="Masuk" />
     <body class="login-body">
       <div class="hazard" />
       <main class="login-card">
@@ -154,9 +157,9 @@ export const Dashboard: FC<{ vehicles: VehicleRow[]; due: DueRow[] }> = ({ vehic
           <a href={`/vehicles/${v.id}`} class={`vehicle-card ${v.status}`}>
             <div class="vehicle-name">{v.name}</div>
             {v.status === 'sold' ? <span class="chip sold">TERJUAL</span> : null}
-            {v.latest_km !== null ? <Odometer km={v.latest_km} /> : <span class="muted">belum ada servis</span>}
+            {v.latest_km !== null ? <Odometer km={v.latest_km} /> : <span class="muted">belum ada catatan</span>}
             <dl class="vehicle-stats">
-              <div><dt>servis</dt><dd>{v.session_count}×</dd></div>
+              <div><dt>kunjungan</dt><dd>{v.visit_count}×</dd></div>
               <div><dt>terakhir</dt><dd>{v.last_date ? tanggal(v.last_date) : '—'}</dd></div>
               <div><dt>total biaya</dt><dd class="money">{rupiah(v.spend)}</dd></div>
             </dl>
@@ -173,12 +176,6 @@ export const Dashboard: FC<{ vehicles: VehicleRow[]; due: DueRow[] }> = ({ vehic
     </section>
   </Layout>
 )
-
-const CATEGORY_LABEL: Record<string, string> = {
-  rutin: 'Perawatan Rutin',
-  aksesoris: 'Aksesoris',
-  administratif: 'Administratif',
-}
 
 const FuelSection: FC<{ vehicle: VehicleRow; fuel: FuelSummary }> = ({ vehicle, fuel }) => (
   <section class="panel">
@@ -235,148 +232,122 @@ const FuelSection: FC<{ vehicle: VehicleRow; fuel: FuelSummary }> = ({ vehicle, 
 
 export const VehiclePage: FC<{
   vehicle: VehicleRow
-  sessions: SessionRow[]
-  extras: ItemRow[]
+  visits: VisitRow[]
   fuel: FuelSummary
-}> = ({ vehicle, sessions, extras, fuel }) => {
-  const extraCats = [...new Set(extras.map((e) => e.category))]
-  return (
-    <Layout title={vehicle.name}>
-      <nav class="crumbs"><a href="/">← dasbor</a></nav>
-      <section class="panel">
-        <div class="vehicle-head">
-          <h1 class="vehicle-title">{vehicle.name}</h1>
-          {vehicle.status === 'sold' ? <span class="chip sold">TERJUAL</span> : null}
-          {vehicle.latest_km !== null ? <Odometer km={vehicle.latest_km} /> : null}
-        </div>
-        <dl class="vehicle-stats wide">
-          <div><dt>servis</dt><dd>{vehicle.session_count}×</dd></div>
-          <div><dt>total biaya</dt><dd class="money">{rupiah(vehicle.spend)}</dd></div>
-        </dl>
-      </section>
+}> = ({ vehicle, visits, fuel }) => (
+  <Layout title={vehicle.name}>
+    <nav class="crumbs"><a href="/">← dasbor</a></nav>
+    <section class="panel">
+      <div class="vehicle-head">
+        <h1 class="vehicle-title">{vehicle.name}</h1>
+        {vehicle.status === 'sold' ? <span class="chip sold">TERJUAL</span> : null}
+        {vehicle.latest_km !== null ? <Odometer km={vehicle.latest_km} /> : null}
+      </div>
+      <dl class="vehicle-stats wide">
+        <div><dt>kunjungan</dt><dd>{vehicle.visit_count}×</dd></div>
+        <div><dt>total biaya</dt><dd class="money">{rupiah(vehicle.spend)}</dd></div>
+      </dl>
+    </section>
 
-      <FuelSection vehicle={vehicle} fuel={fuel} />
+    <FuelSection vehicle={vehicle} fuel={fuel} />
 
-      <section class="panel">
-        <h2 class="panel-title">Sesi Perawatan</h2>
-        {sessions.length === 0 ? <p class="muted">Belum ada sesi perawatan.</p> : (
-          <ul class="session-list">
-            {sessions.map((s) => (
-              <li>
-                <a href={`/sessions/${s.id}`} class="session-row">
-                  <span class="session-seq">#{s.seq}</span>
-                  <span class="session-date">{tanggal(s.date)}</span>
-                  <span class="session-km">{s.odometer_km.toLocaleString('id-ID')} km</span>
-                  <span class="session-count">{s.item_count} item</span>
-                  <span class="money">{rupiah(s.total)}</span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
-        <details class="adder">
-          <summary>+ sesi perawatan baru</summary>
-          <form method="post" action={`/vehicles/${vehicle.id}/sessions`} class="stack">
+    <section class="panel">
+      <h2 class="panel-title">Kunjungan</h2>
+      {visits.length === 0 ? <p class="muted">Belum ada kunjungan.</p> : (
+        <ul class="session-list">
+          {visits.map((vi) => (
+            <li>
+              <a href={`/visits/${vi.id}`} class="visit-row">
+                <span class="visit-date">{tanggal(vi.date)}</span>
+                <span class="visit-vendor">
+                  {vi.vendor ?? '—'}
+                  {vi.label ? <span class="chip label">{vi.label}</span> : null}
+                </span>
+                <span class="visit-km mono">{vi.odometer_km !== null ? `${vi.odometer_km.toLocaleString('id-ID')} km` : ''}</span>
+                <span class="visit-count">{vi.item_count} item</span>
+                <span class="money">{rupiah(vi.total)}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+      <details class="adder">
+        <summary>+ kunjungan / pembelian baru</summary>
+        <form method="post" action={`/vehicles/${vehicle.id}/visits`} class="stack">
+          <div class="row2">
             <label>tanggal <input type="date" name="date" required /></label>
-            <label>odometer (km) <input type="number" name="odometer_km" min="0" required /></label>
-            <button type="submit" class="primary">buka sesi</button>
-          </form>
-        </details>
-      </section>
+            <label>odometer km (opsional) <input type="number" name="odometer_km" min="0" /></label>
+          </div>
+          <input name="vendor" placeholder="bengkel / toko / samsat (opsional)" />
+          <input name="label" placeholder="label grup, mis. Servis berkala (opsional)" />
+          <button type="submit" class="primary">buka kunjungan</button>
+        </form>
+      </details>
+    </section>
 
-      {extraCats.map((cat) => (
-        <section class="panel">
-          <h2 class="panel-title">{CATEGORY_LABEL[cat]}</h2>
-          <ItemTable items={extras.filter((e) => e.category === cat)} />
-        </section>
-      ))}
+    <section class="panel danger-zone">
+      <details>
+        <summary class="danger-summary">pengaturan kendaraan</summary>
+        <form
+          method="post"
+          action={`/vehicles/${vehicle.id}/status`}
+          onsubmit={`return confirm('${vehicle.status === 'active'
+            ? `Tandai ${vehicle.name} sebagai TERJUAL? Kendaraan tidak akan muncul di pengingat.`
+            : `Aktifkan kembali ${vehicle.name}?`}')`}
+        >
+          <input type="hidden" name="status" value={vehicle.status === 'active' ? 'sold' : 'active'} />
+          <p class="muted danger-note">
+            {vehicle.status === 'active'
+              ? 'Menandai terjual menyembunyikan kendaraan dari pengingat. Riwayat tetap tersimpan.'
+              : 'Kendaraan ini berstatus terjual.'}
+          </p>
+          <button type="submit" class="ghost small danger">
+            {vehicle.status === 'active' ? 'tandai terjual' : 'aktifkan lagi'}
+          </button>
+        </form>
+      </details>
+    </section>
+  </Layout>
+)
 
-      <section class="panel">
-        <details class="adder">
-          <summary>+ pengeluaran non-servis (aksesoris / administratif)</summary>
-          <form method="post" action={`/vehicles/${vehicle.id}/items`} class="stack">
-            <label>tanggal <input type="date" name="date" required /></label>
-            <input name="description" placeholder="keterangan" required />
-            <div class="row2">
-              <label>harga satuan <input type="number" name="unit_price" min="0" required /></label>
-              <label>jumlah <input type="number" name="qty" min="0" step="any" required /></label>
-            </div>
-            <label>kategori
-              <select name="category" required>
-                <option value="aksesoris">aksesoris</option>
-                <option value="administratif">administratif</option>
-              </select>
-            </label>
-            <button type="submit" class="primary">simpan</button>
-          </form>
-        </details>
-      </section>
-
-      <section class="panel danger-zone">
-        <details>
-          <summary class="danger-summary">pengaturan kendaraan</summary>
-          <form
-            method="post"
-            action={`/vehicles/${vehicle.id}/status`}
-            onsubmit={`return confirm('${vehicle.status === 'active'
-              ? `Tandai ${vehicle.name} sebagai TERJUAL? Kendaraan tidak akan muncul di pengingat.`
-              : `Aktifkan kembali ${vehicle.name}?`}')`}
-          >
-            <input type="hidden" name="status" value={vehicle.status === 'active' ? 'sold' : 'active'} />
-            <p class="muted danger-note">
-              {vehicle.status === 'active'
-                ? 'Menandai terjual menyembunyikan kendaraan dari pengingat. Riwayat tetap tersimpan.'
-                : 'Kendaraan ini berstatus terjual.'}
-            </p>
-            <button type="submit" class="ghost small danger">
-              {vehicle.status === 'active' ? 'tandai terjual' : 'aktifkan lagi'}
-            </button>
-          </form>
-        </details>
-      </section>
-    </Layout>
-  )
-}
-
-const ItemTable: FC<{ items: ItemRow[]; showCheckpoint?: boolean }> = ({ items, showCheckpoint }) => (
+const ItemTable: FC<{ items: ItemRow[] }> = ({ items }) => (
   <table class="items">
     <thead>
       <tr>
-        <th>tanggal</th>
         <th>parts / jasa</th>
         <th class="num">harga × jml</th>
         <th class="num">total</th>
-        {showCheckpoint ? <th>checkpoint</th> : null}
+        <th>checkpoint</th>
         <th />
       </tr>
     </thead>
     <tbody>
       {items.map((it) => (
         <tr class={it.total === 0 ? 'umbrella' : ''}>
-          <td class="date">{it.date ? tanggal(it.date) : '—'}</td>
-          <td class="desc">{it.description}</td>
+          <td class="desc">
+            {it.description}
+            {it.category !== 'rutin' ? <span class={`chip cat`}> {it.category}</span> : null}
+          </td>
           <td class="num mono">
             {it.total === 0 ? '' : `${it.unit_price.toLocaleString('id-ID')} × ${it.qty.toLocaleString('id-ID')}`}
           </td>
           <td class="num mono">{it.total === 0 ? '' : it.total.toLocaleString('id-ID')}</td>
-          {showCheckpoint ? (
-            <td class="checkpoint">
-              {it.due_date || it.due_km !== null || it.checkpoint_note ? (
-                <span class={`chip ${it.checkpoint_done ? 'done' : 'open'}`}>
-                  {it.due_date ? tanggal(it.due_date) : ''}
-                  {it.due_date && it.due_km !== null ? ' / ' : ''}
-                  {it.due_km !== null ? `${it.due_km.toLocaleString('id-ID')} km` : ''}
-                  {!it.due_date && it.due_km === null ? it.checkpoint_note : ''}
-                  {it.checkpoint_done ? ' ✓' : ''}
-                </span>
-              ) : null}
-              {(it.due_date || it.due_km !== null) && !it.checkpoint_done ? (
-                <form method="post" action={`/items/${it.id}/done`} class="inline-form">
-                  <button type="submit" class="ghost small">✓</button>
-                </form>
-              ) : null}
-            </td>
-          ) : null}
+          <td class="checkpoint">
+            {it.due_date || it.due_km !== null || it.checkpoint_note ? (
+              <span class={`chip ${it.checkpoint_done ? 'done' : 'open'}`}>
+                {it.due_date ? tanggal(it.due_date) : ''}
+                {it.due_date && it.due_km !== null ? ' / ' : ''}
+                {it.due_km !== null ? `${it.due_km.toLocaleString('id-ID')} km` : ''}
+                {!it.due_date && it.due_km === null ? it.checkpoint_note : ''}
+                {it.checkpoint_done ? ' ✓' : ''}
+              </span>
+            ) : null}
+            {(it.due_date || it.due_km !== null) && !it.checkpoint_done ? (
+              <form method="post" action={`/items/${it.id}/done`} class="inline-form">
+                <button type="submit" class="ghost small">✓</button>
+              </form>
+            ) : null}
+          </td>
           <td class="rowact">
             <form
               method="post"
@@ -392,37 +363,46 @@ const ItemTable: FC<{ items: ItemRow[]; showCheckpoint?: boolean }> = ({ items, 
   </table>
 )
 
-export const SessionPage: FC<{
+export const VisitPage: FC<{
   vehicle: VehicleRow
-  session: SessionRow
+  visit: VisitRow
   items: ItemRow[]
-}> = ({ vehicle, session, items }) => (
-  <Layout title={`${vehicle.name} · Servis #${session.seq}`}>
+  attachments: AttachmentRow[]
+}> = ({ vehicle, visit, items, attachments }) => (
+  <Layout title={`${vehicle.name} · ${tanggal(visit.date)}`}>
     <nav class="crumbs">
       <a href="/">dasbor</a> / <a href={`/vehicles/${vehicle.id}`}>{vehicle.name}</a>
     </nav>
     <section class="panel">
       <div class="vehicle-head">
-        <h1 class="vehicle-title">Servis #{session.seq}</h1>
-        <Odometer km={session.odometer_km} />
+        <h1 class="vehicle-title">{visit.vendor ?? 'Kunjungan'}</h1>
+        {visit.odometer_km !== null ? <Odometer km={visit.odometer_km} /> : null}
       </div>
       <dl class="vehicle-stats wide">
-        <div><dt>tanggal</dt><dd>{tanggal(session.date)}</dd></div>
+        <div><dt>tanggal</dt><dd>{tanggal(visit.date)}</dd></div>
+        {visit.label ? <div><dt>grup</dt><dd>{visit.label}</dd></div> : null}
         <div><dt>item</dt><dd>{items.length}</dd></div>
         <div><dt>total</dt><dd class="money">{rupiah(items.reduce((a, i) => a + i.total, 0))}</dd></div>
       </dl>
     </section>
+
     <section class="panel">
-      <ItemTable items={items} showCheckpoint />
+      <ItemTable items={items} />
       <details class="adder" open={items.length === 0}>
         <summary>+ tambah item</summary>
-        <form method="post" action={`/sessions/${session.id}/items`} class="stack">
-          <label>tanggal <input type="date" name="date" required /></label>
+        <form method="post" action={`/visits/${visit.id}/items`} class="stack">
           <input name="description" placeholder="parts / jasa" required />
           <div class="row2">
             <label>harga satuan <input type="number" name="unit_price" min="0" required /></label>
             <label>jumlah <input type="number" name="qty" min="0" step="any" required /></label>
           </div>
+          <label>kategori
+            <select name="category" required>
+              <option value="rutin">rutin</option>
+              <option value="aksesoris">aksesoris</option>
+              <option value="administratif">administratif</option>
+            </select>
+          </label>
           <fieldset class="checkpoint-fields">
             <legend>checkpoint berikutnya (opsional)</legend>
             <div class="row2">
@@ -432,6 +412,31 @@ export const SessionPage: FC<{
             <input name="checkpoint_note" placeholder="catatan checkpoint" />
           </fieldset>
           <button type="submit" class="primary">simpan item</button>
+        </form>
+      </details>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel-title">📎 Struk & Dokumen</h2>
+      {attachments.length === 0 ? <p class="muted">Belum ada lampiran.</p> : (
+        <ul class="attachment-list">
+          {attachments.map((a) => (
+            <li>
+              <a href={`/attachments/${a.id}`} target="_blank" rel="noopener">{a.filename}</a>
+              <span class="muted"> {(a.size / 1024).toFixed(0)} KB</span>
+              <form method="post" action={`/attachments/${a.id}/delete`} class="inline-form"
+                onsubmit="return confirm('Hapus lampiran ini?')">
+                <button type="submit" class="ghost small danger" title="hapus">×</button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      )}
+      <details class="adder">
+        <summary>+ unggah struk</summary>
+        <form method="post" action={`/visits/${visit.id}/attachments`} enctype="multipart/form-data" class="stack">
+          <input type="file" name="files" accept="image/*,application/pdf" multiple required />
+          <button type="submit" class="primary">unggah</button>
         </form>
       </details>
     </section>

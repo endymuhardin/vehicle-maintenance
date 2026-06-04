@@ -23,12 +23,13 @@ export async function findDueItems(env: Env, now: Date): Promise<DueItem[]> {
     SELECT li.id, li.description, li.due_date, li.due_km,
            v.id AS vehicle_id, v.name AS vehicle_name,
            (SELECT MAX(mk) FROM (
-              SELECT MAX(s.odometer_km) AS mk FROM sessions s WHERE s.vehicle_id = v.id
+              SELECT MAX(vi2.odometer_km) AS mk FROM visits vi2 WHERE vi2.vehicle_id = v.id
               UNION ALL
               SELECT MAX(o.odometer_km) FROM odometer_logs o WHERE o.vehicle_id = v.id
            )) AS latest_km
     FROM line_items li
-    JOIN vehicles v ON v.id = li.vehicle_id
+    JOIN visits vi ON vi.id = li.visit_id
+    JOIN vehicles v ON v.id = vi.vehicle_id
     WHERE li.checkpoint_done = 0
       AND v.status = 'active'
       AND (li.due_date IS NOT NULL OR li.due_km IS NOT NULL)

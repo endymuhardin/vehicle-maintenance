@@ -10,6 +10,12 @@
   "routes": [
     { "pattern": "garasi.muhardin.com", "custom_domain": true }
   ],
+  "r2_buckets": [
+    {
+      "binding": "RECEIPTS",
+      "bucket_name": "vehicle-receipts"
+    }
+  ],
   "d1_databases": [
     {
       "binding": "DB",

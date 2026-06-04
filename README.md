@@ -1,13 +1,14 @@
 # Garasi·Log
 
 Vehicle maintenance record app. Single user, server-rendered, runs entirely on
-Cloudflare free tier (Workers + D1). Daily cron checks service checkpoints and
-sends Telegram reminders.
+Cloudflare free tier (Workers + D1 + R2). Daily cron checks service
+checkpoints and sends Telegram reminders. Tracks fuel consumption (km/l) and
+stores receipt photos.
 
 ## Stack
 
 - Cloudflare Worker, [Hono](https://hono.dev) with JSX server rendering
-- D1 (SQLite) — schema in `schema.sql`
+- D1 (SQLite) — schema in `schema.sql`; R2 for receipt photos
 - No client-side JavaScript; one CSS file
 - Cron trigger (daily, 05:00 WIB) → Telegram bot for due checkpoints
 
@@ -15,18 +16,22 @@ sends Telegram reminders.
 
 ```
 vehicles (name, status: active|sold)
-  └── sessions (seq "Perawatan ke-N", date, odometer_km)
-        └── line_items (date, description, unit_price, qty, total,
-                        category: rutin|aksesoris|administratif,
-                        checkpoint_note, due_date, due_km, checkpoint_done)
+  ├── visits (date, odometer_km?, vendor?, label?)     ← 1 receipt = 1 visit
+  │     ├── line_items (description, unit_price, qty, total,
+  │     │               category: rutin|aksesoris|administratif,
+  │     │               checkpoint_note, due_date, due_km, checkpoint_done)
+  │     └── attachments (receipt photos/documents, stored in R2)
+  └── odometer_logs (date, odometer_km, liters?, total?)  ← refuels + readings
 ```
 
-Line items with `session_id = NULL` are non-service expenses (accessories,
-administrative costs). Prices are stored in full rupiah as integers.
+Prices are full rupiah integers. Visits with a shared `label` form a group
+(e.g. one maintenance campaign across several shops). Fuel entries yield km/l
+per fill (full-tank method) and a running average.
 
 A checkpoint becomes *due* when `due_date` falls within `REMINDER_DAYS_AHEAD`
-days, or `due_km` is within `REMINDER_KM_AHEAD` of the vehicle's latest
-recorded odometer. Sold vehicles are excluded from reminders.
+days, or `due_km` is within `REMINDER_KM_AHEAD` of the vehicle's current
+odometer (max over visit odometers and the odometer log). Sold vehicles are
+excluded from reminders.
 
 ## Setup
 
@@ -35,6 +40,9 @@ npm install
 
 # 1. create the database, then copy database_id into wrangler.jsonc
 wrangler d1 create vehicle-maintenance
+
+# 1b. enable R2 in the Cloudflare dashboard once, then:
+wrangler r2 bucket create vehicle-receipts
 
 # 2. apply schema
 npm run db:schema:remote
@@ -64,10 +72,11 @@ npm run dev
 ## JSON API
 
 All endpoints require `Authorization: Bearer <API_TOKEN>`. Intended use:
-parse a workshop receipt (e.g. with Claude Code) and push it in one call.
-Full reference with request/response examples and the receipt-entry workflow:
-[docs/API.md](docs/API.md). Once deployed, the same reference is served
-online: OpenAPI spec at `/openapi.json`, Swagger UI at `/api-docs`.
+parse a workshop receipt (e.g. with Claude Code), push it as a visit in one
+call, and attach the receipt photo. Full reference with request/response
+examples and the receipt/refuel workflows: [docs/API.md](docs/API.md). Once
+deployed, the same reference is served online: OpenAPI spec at
+`/openapi.json`, Swagger UI at `/api-docs`.
 
 | Method | Path | Body |
 |---|---|---|

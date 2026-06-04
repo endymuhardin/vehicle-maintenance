@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Garasi Log API",
-    "version": "1.0.0",
-    "description": "Vehicle maintenance record API. All endpoints require `Authorization: Bearer <API_TOKEN>`.\n\n## Conventions\n\n- Money: full rupiah, integer (`108000`, never `108` or `108.000`)\n- Dates: ISO `yyyy-mm-dd` strings\n- `category` is required on every item: `rutin` | `aksesoris` | `administratif`\n- No silent defaults: missing required fields return `400 {\"error\": \"missing field: <name>\"}`. Exception: `total` is computed as `round(unit_price × qty)` when omitted\n- `due_km` is an **absolute odometer value**, not an interval: \"next oil change in 3000 km\" at odometer 32000 → `due_km: 35000`\n\n## Receipt entry workflow\n\nWhen entering a workshop receipt (photo or text):\n\n1. `GET /api/vehicles` to resolve the vehicle id; ask if the receipt doesn't clearly match one vehicle\n2. Decide where the items go:\n   - routine service visit → new session: `POST /api/vehicles/{id}/sessions` with `date`, `odometer_km`, `items`. Ask for the odometer reading if the receipt doesn't show it\n   - follow-up work belonging to a recent visit → append: `POST /api/sessions/{id}/items`\n   - accessories or administrative costs (pajak, STNK, balik nama) → sessionless: `POST /api/vehicles/{id}/items`\n3. Normalize prices to full-rupiah integers (\"60rb\" → 60000, \"1,2jt\" → 1200000)\n4. If a next-service interval is mentioned, set `due_date` and/or `due_km` (absolute odometer) on that item\n5. Confirm the parsed items with the user before posting\n\nA checkpoint becomes *due* when `due_date` is within `REMINDER_DAYS_AHEAD` (14) days, or `due_km` is within `REMINDER_KM_AHEAD` (500) km of the vehicle's current odometer (max over maintenance sessions and the odometer/fuel log). Sold vehicles are excluded. Due checkpoints are sent daily at 05:00 WIB via Telegram.\n\n## Refuel entry workflow\n\nWhen given odometer + fuel receipt photos: read the odometer km from the dashboard photo and date/liters/total from the receipt, then `POST /api/vehicles/{id}/odometer`. Full-tank refuels make km/l accurate; log a plain odometer reading (no liters/total) anytime to keep reminders fresh.",
+    "version": "2.0.0",
+    "description": "Vehicle maintenance record API. All endpoints require `Authorization: Bearer <API_TOKEN>`.\n\n## Model\n\n`vehicles → visits → line_items`, plus `odometer_logs` (refuels/readings) and `attachments` (receipt photos in R2). **One receipt = one visit.** Visits can carry an optional `label` to group related visits (e.g. one maintenance campaign across several shops).\n\n## Conventions\n\n- Money: full rupiah, integer (`108000`, never `108` or `108.000`)\n- Dates: ISO `yyyy-mm-dd` strings\n- `category` is required on every item: `rutin` | `aksesoris` | `administratif`\n- No silent defaults: missing required fields return `400 {\"error\": \"missing field: <name>\"}`. Exception: `total` is computed as `round(unit_price × qty)` when omitted\n- `due_km` is an **absolute odometer value**, not an interval: \"next oil change in 3000 km\" at odometer 32000 → `due_km: 35000`\n\n## Receipt entry workflow\n\nWhen entering a workshop receipt (photo or text):\n\n1. `GET /api/vehicles` to resolve the vehicle id; ask if the receipt doesn't clearly match one vehicle\n2. Create one visit per receipt: `POST /api/vehicles/{id}/visits` with `date`, `vendor`, `odometer_km` (when known), optional `label` for grouping, and `items`\n3. Normalize prices to full-rupiah integers (\"60rb\" → 60000, \"1,2jt\" → 1200000)\n4. If a next-service interval is mentioned, set `due_date` and/or `due_km` (absolute odometer) on that item\n5. Upload the receipt photo(s): `POST /api/visits/{id}/attachments` (multipart, field `files`)\n6. Confirm the parsed items with the user before posting\n\n## Refuel entry workflow\n\nWhen given odometer + fuel receipt photos: read the odometer km from the dashboard photo and date/liters/total from the receipt, then `POST /api/vehicles/{id}/odometer`. Full-tank refuels make km/l accurate; log a plain odometer reading (no liters/total) anytime to keep reminders fresh.\n\n## Reminders\n\nA checkpoint becomes *due* when `due_date` is within `REMINDER_DAYS_AHEAD` (14) days, or `due_km` is within `REMINDER_KM_AHEAD` (500) km of the vehicle's current odometer (max over visit odometers and the odometer/fuel log). Sold vehicles are excluded. Due checkpoints are sent daily at 05:00 WIB via Telegram.",
     "license": { "name": "MIT", "url": "https://github.com/endymuhardin/vehicle-maintenance/blob/main/LICENSE" }
   },
   "externalDocs": {
@@ -14,7 +14,8 @@
   "security": [{ "bearerAuth": [] }],
   "tags": [
     { "name": "vehicles" },
-    { "name": "sessions" },
+    { "name": "visits" },
+    { "name": "attachments" },
     { "name": "checkpoints" },
     { "name": "fuel" }
   ],
@@ -30,8 +31,7 @@
               "application/json": {
                 "schema": { "type": "array", "items": { "$ref": "#/components/schemas/VehicleSummary" } },
                 "example": [
-                  { "id": 1, "name": "Corolla Twincam", "status": "active", "latest_km": 180000, "session_count": 5, "spend": 58646000 },
-                  { "id": 2, "name": "Revo Fit 2012", "status": "sold", "latest_km": 56000, "session_count": 1, "spend": 3654475 }
+                  { "id": 1, "name": "Corolla Twincam", "status": "active", "latest_km": 180000, "last_date": "2026-01-18", "visit_count": 63, "spend": 58646000 }
                 ]
               }
             }
@@ -46,11 +46,7 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["name"],
-                "properties": { "name": { "type": "string" } }
-              },
+              "schema": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" } } },
               "example": { "name": "Yamaha NMAX 2026" }
             }
           }
@@ -68,19 +64,18 @@
     "/api/vehicles/{id}": {
       "get": {
         "tags": ["vehicles"],
-        "summary": "Vehicle detail with its maintenance sessions",
+        "summary": "Vehicle detail with its visits",
         "parameters": [{ "$ref": "#/components/parameters/Id" }],
         "responses": {
           "200": {
-            "description": "Vehicle with sessions ordered by seq",
+            "description": "Vehicle with visits, newest first",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/VehicleDetail" },
                 "example": {
                   "id": 4, "name": "Yamaha All New Vixion 2017", "status": "active",
-                  "latest_km": 32000, "last_date": "2026-06-01", "session_count": 1, "spend": 190000,
-                  "sessions": [
-                    { "id": 8, "seq": 1, "date": "2026-06-01", "odometer_km": 32000, "item_count": 3, "total": 190000 }
+                  "latest_km": 48210, "last_date": "2026-05-25", "visit_count": 4, "spend": 4879500,
+                  "visits": [
+                    { "id": 76, "vehicle_id": 4, "date": "2026-05-25", "odometer_km": null, "vendor": "Modifikasi Ori Speedshop", "label": "Refurbishment paska beli", "item_count": 5, "total": 600000 }
                   ]
                 }
               }
@@ -91,11 +86,11 @@
         }
       }
     },
-    "/api/vehicles/{id}/sessions": {
+    "/api/vehicles/{id}/visits": {
       "post": {
-        "tags": ["sessions"],
-        "summary": "Create a maintenance session with line items (receipt entry)",
-        "description": "The primary endpoint for entering a workshop receipt. Creates the session (\"Perawatan ke-N\", `seq` auto-incremented per vehicle) and its line items in one call. `items` is required but may be empty.",
+        "tags": ["visits"],
+        "summary": "Create a visit with line items (receipt entry)",
+        "description": "The primary endpoint for entering a receipt: one receipt = one visit. `items` is required but may be empty. Use `label` to group related visits (e.g. one maintenance campaign across shops).",
         "parameters": [{ "$ref": "#/components/parameters/Id" }],
         "requestBody": {
           "required": true,
@@ -103,19 +98,21 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["date", "odometer_km", "items"],
+                "required": ["date", "items"],
                 "properties": {
                   "date": { "type": "string", "format": "date" },
-                  "odometer_km": { "type": "integer" },
+                  "odometer_km": { "type": "integer", "description": "Reading at the visit, when known" },
+                  "vendor": { "type": "string", "description": "bengkel / toko / samsat" },
+                  "label": { "type": "string", "description": "Optional grouping label" },
                   "items": { "type": "array", "items": { "$ref": "#/components/schemas/ItemInput" } }
                 }
               },
               "example": {
-                "date": "2026-06-01",
-                "odometer_km": 32000,
+                "date": "2026-06-14",
+                "odometer_km": 49100,
+                "vendor": "Mekar Motor Cibinong",
                 "items": [
-                  { "description": "Oli mesin Yamalube", "unit_price": 60000, "qty": 1, "category": "rutin", "date": "2026-06-01", "due_km": 35000, "checkpoint_note": "tiap 3000 km" },
-                  { "description": "Jasa servis ringan", "unit_price": 85000, "qty": 1, "category": "rutin", "date": "2026-06-01" }
+                  { "description": "Oli mesin Yamalube Sport", "unit_price": 60000, "qty": 1, "category": "rutin", "due_km": 51100, "checkpoint_note": "tiap 2000 km" }
                 ]
               }
             }
@@ -123,8 +120,8 @@
         },
         "responses": {
           "201": {
-            "description": "Session created with items",
-            "content": { "application/json": { "example": { "id": 8, "vehicle_id": 4, "seq": 1, "date": "2026-06-01", "odometer_km": 32000, "item_count": 2 } } }
+            "description": "Visit created with items",
+            "content": { "application/json": { "example": { "id": 77, "vehicle_id": 4, "date": "2026-06-14", "item_count": 1 } } }
           },
           "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
@@ -132,57 +129,25 @@
         }
       }
     },
-    "/api/vehicles/{id}/items": {
-      "post": {
-        "tags": ["vehicles"],
-        "summary": "Add sessionless expenses (aksesoris / administratif)",
-        "description": "For costs not tied to a maintenance session: accessories, pajak, STNK, balik nama.",
-        "parameters": [{ "$ref": "#/components/parameters/Id" }],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["items"],
-                "properties": {
-                  "items": { "type": "array", "minItems": 1, "items": { "$ref": "#/components/schemas/ItemInput" } }
-                }
-              },
-              "example": { "items": [{ "description": "Pajak tahunan", "unit_price": 280000, "qty": 1, "category": "administratif", "date": "2026-05-20" }] }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Items inserted",
-            "content": { "application/json": { "example": { "vehicle_id": 4, "inserted": 1 } } }
-          },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "404": { "$ref": "#/components/responses/NotFound" }
-        }
-      }
-    },
-    "/api/sessions/{id}": {
+    "/api/visits/{id}": {
       "get": {
-        "tags": ["sessions"],
-        "summary": "Session detail with line items",
+        "tags": ["visits"],
+        "summary": "Visit detail with line items and attachments",
         "parameters": [{ "$ref": "#/components/parameters/Id" }],
         "responses": {
           "200": {
-            "description": "Session with full line_items rows",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SessionDetail" } } }
+            "description": "Visit with full line_items rows and attachment metadata",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VisitDetail" } } }
           },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "404": { "$ref": "#/components/responses/NotFound" }
         }
       }
     },
-    "/api/sessions/{id}/items": {
+    "/api/visits/{id}/items": {
       "post": {
-        "tags": ["sessions"],
-        "summary": "Append line items to an existing session",
+        "tags": ["visits"],
+        "summary": "Append line items to an existing visit",
         "parameters": [{ "$ref": "#/components/parameters/Id" }],
         "requestBody": {
           "required": true,
@@ -191,20 +156,58 @@
               "schema": {
                 "type": "object",
                 "required": ["items"],
-                "properties": {
-                  "items": { "type": "array", "minItems": 1, "items": { "$ref": "#/components/schemas/ItemInput" } }
-                }
-              },
-              "example": { "items": [{ "description": "Kampas rem belakang", "unit_price": 45000, "qty": 1, "category": "rutin", "date": "2026-06-01" }] }
+                "properties": { "items": { "type": "array", "minItems": 1, "items": { "$ref": "#/components/schemas/ItemInput" } } }
+              }
             }
           }
         },
         "responses": {
           "201": {
             "description": "Items inserted",
-            "content": { "application/json": { "example": { "session_id": 8, "inserted": 1 } } }
+            "content": { "application/json": { "example": { "visit_id": 77, "inserted": 2 } } }
           },
           "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/visits/{id}/attachments": {
+      "post": {
+        "tags": ["attachments"],
+        "summary": "Upload receipt photos/documents to a visit",
+        "description": "multipart/form-data with one or more files in the `files` field. Accepted: image/* and application/pdf, max 10 MB each. Stored in R2.",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["files"],
+                "properties": { "files": { "type": "array", "items": { "type": "string", "format": "binary" } } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Files stored",
+            "content": { "application/json": { "example": { "visit_id": 73, "uploaded": [{ "id": 1, "filename": "IMG_20260604_093107.jpg", "size": 492568 }] } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/attachments/{id}": {
+      "get": {
+        "tags": ["attachments"],
+        "summary": "Download an attachment (binary)",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "The file, with its original content type" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "404": { "$ref": "#/components/responses/NotFound" }
         }
@@ -219,20 +222,7 @@
         "responses": {
           "200": {
             "description": "Fuel log summary",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/FuelSummary" },
-                "example": {
-                  "entries": [
-                    { "id": 2, "vehicle_id": 3, "date": "2026-05-20", "odometer_km": 61550, "liters": 3.2, "total": 43200, "note": "Pertalite", "km_per_liter": 46.88 },
-                    { "id": 1, "vehicle_id": 3, "date": "2026-05-01", "odometer_km": 61400, "liters": 3.5, "total": 47250, "note": "Pertalite", "km_per_liter": null }
-                  ],
-                  "avg_km_per_liter": 46.88,
-                  "total_fuel_cost": 90450,
-                  "total_liters": 6.7
-                }
-              }
-            }
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FuelSummary" } } }
           },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "404": { "$ref": "#/components/responses/NotFound" }
@@ -241,7 +231,7 @@
       "post": {
         "tags": ["fuel"],
         "summary": "Log an odometer reading, optionally with refuel data",
-        "description": "With `liters` + `total`: a refuel entry (full tank assumed for km/l accuracy). Without both: a plain odometer reading. Providing only one of the two is a 400. Odometer readings feed the reminder engine: a vehicle's current km = max over sessions and this log.",
+        "description": "With `liters` + `total`: a refuel entry (full tank assumed for km/l accuracy). Without both: a plain odometer reading. Providing only one of the two is a 400. Odometer readings feed the reminder engine: a vehicle's current km = max over visit odometers and this log.",
         "parameters": [{ "$ref": "#/components/parameters/Id" }],
         "requestBody": {
           "required": true,
@@ -301,7 +291,7 @@
               "application/json": {
                 "schema": { "type": "array", "items": { "$ref": "#/components/schemas/DueItem" } },
                 "example": [
-                  { "id": 195, "description": "Oli Mesin", "due_date": "2026-04-01", "due_km": null, "vehicle_id": 3, "vehicle_name": "Mio Smile 2010", "latest_km": 61154, "overdue": true }
+                  { "id": 211, "description": "Yamalube Sport Oil", "due_date": null, "due_km": 48611, "vehicle_id": 4, "vehicle_name": "Yamaha All New Vixion 2017", "latest_km": 48210, "overdue": false }
                 ]
               }
             }
@@ -316,12 +306,7 @@
       "bearerAuth": { "type": "http", "scheme": "bearer" }
     },
     "parameters": {
-      "Id": {
-        "name": "id",
-        "in": "path",
-        "required": true,
-        "schema": { "type": "integer" }
-      }
+      "Id": { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
     },
     "responses": {
       "BadRequest": {
@@ -348,44 +333,36 @@
           "id": { "type": "integer" },
           "name": { "type": "string" },
           "status": { "type": "string", "enum": ["active", "sold"] },
-          "latest_km": { "type": ["integer", "null"], "description": "Highest session odometer, null if no sessions" },
-          "session_count": { "type": "integer" },
+          "latest_km": { "type": ["integer", "null"], "description": "Max over visit odometers and the odometer log" },
+          "last_date": { "type": ["string", "null"], "format": "date" },
+          "visit_count": { "type": "integer" },
           "spend": { "type": "integer", "description": "Sum of all line item totals, rupiah" }
         }
       },
-      "VehicleDetail": {
-        "allOf": [
-          { "$ref": "#/components/schemas/VehicleSummary" },
-          {
-            "type": "object",
-            "properties": {
-              "last_date": { "type": ["string", "null"], "format": "date" },
-              "sessions": { "type": "array", "items": { "$ref": "#/components/schemas/SessionSummary" } }
-            }
-          }
-        ]
-      },
-      "SessionSummary": {
-        "type": "object",
-        "properties": {
-          "id": { "type": "integer" },
-          "seq": { "type": "integer", "description": "Perawatan ke-N, per vehicle" },
-          "date": { "type": "string", "format": "date" },
-          "odometer_km": { "type": "integer" },
-          "item_count": { "type": "integer" },
-          "total": { "type": "integer" }
-        }
-      },
-      "SessionDetail": {
+      "VisitSummary": {
         "type": "object",
         "properties": {
           "id": { "type": "integer" },
           "vehicle_id": { "type": "integer" },
-          "seq": { "type": "integer" },
           "date": { "type": "string", "format": "date" },
-          "odometer_km": { "type": "integer" },
-          "items": { "type": "array", "items": { "$ref": "#/components/schemas/LineItem" } }
+          "odometer_km": { "type": ["integer", "null"] },
+          "vendor": { "type": ["string", "null"] },
+          "label": { "type": ["string", "null"], "description": "Optional grouping label" },
+          "item_count": { "type": "integer" },
+          "total": { "type": "integer" }
         }
+      },
+      "VisitDetail": {
+        "allOf": [
+          { "$ref": "#/components/schemas/VisitSummary" },
+          {
+            "type": "object",
+            "properties": {
+              "items": { "type": "array", "items": { "$ref": "#/components/schemas/LineItem" } },
+              "attachments": { "type": "array", "items": { "$ref": "#/components/schemas/Attachment" } }
+            }
+          }
+        ]
       },
       "ItemInput": {
         "type": "object",
@@ -396,7 +373,6 @@
           "qty": { "type": "number" },
           "total": { "type": "integer", "description": "Defaults to round(unit_price × qty)" },
           "category": { "type": "string", "enum": ["rutin", "aksesoris", "administratif"] },
-          "date": { "type": "string", "format": "date" },
           "checkpoint_note": { "type": "string", "description": "Free-text service note" },
           "due_date": { "type": "string", "format": "date", "description": "Reminder by date" },
           "due_km": { "type": "integer", "description": "Reminder by ABSOLUTE odometer km, not interval" }
@@ -409,12 +385,22 @@
             "type": "object",
             "properties": {
               "id": { "type": "integer" },
-              "vehicle_id": { "type": "integer" },
-              "session_id": { "type": ["integer", "null"] },
+              "visit_id": { "type": "integer" },
               "checkpoint_done": { "type": "integer", "enum": [0, 1] }
             }
           }
         ]
+      },
+      "Attachment": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "visit_id": { "type": "integer" },
+          "filename": { "type": "string" },
+          "content_type": { "type": "string" },
+          "size": { "type": "integer" },
+          "uploaded_at": { "type": "string" }
+        }
       },
       "FuelEntry": {
         "type": "object",

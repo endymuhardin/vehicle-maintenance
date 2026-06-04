@@ -1,6 +1,8 @@
 # personal data — never publish
 *.xlsx
 seed.sql
+backups/
+migration-v2.sql
 
 # secrets for local dev
 .dev.vars

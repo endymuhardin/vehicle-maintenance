@@ -1,25 +1,31 @@
 # Garasi·Log — project notes for Claude Code
 
-Vehicle maintenance app on Cloudflare Workers + D1. See README.md for setup
-and full API docs.
+Vehicle maintenance app on Cloudflare Workers + D1 + R2. See README.md for
+setup and docs/API.md for the API reference.
 
-## Refuel entry workflow
+## Data model
 
-When given odometer + fuel receipt photos: odometer km from the dashboard
-photo, date/liters/total from the receipt →
-`POST /api/vehicles/:id/odometer`. See docs/API.md. Confirm parsed values
-with the user before posting.
+`vehicles → visits → line_items`, plus `odometer_logs` (refuels/readings) and
+`attachments` (receipt photos in R2). **One receipt = one visit.** Visits
+carry an optional `label` to group related visits.
 
 ## Receipt entry workflow
 
-When given a workshop receipt (photo or text), follow `docs/API.md` — it
-contains the full workflow, endpoint reference with request/response examples,
-and a worked receipt→API example. Key rules: credentials come from `.dev.vars`
-(stop and ask if missing), confirm parsed items with the user before posting,
-never edit the database directly.
+When given a workshop receipt (photo or text), follow `docs/API.md` — full
+workflow, endpoint reference, and a worked example. Key rules: credentials
+from `.dev.vars` (stop and ask if missing), one receipt = one visit, upload
+the receipt photo as attachment after creating the visit, confirm parsed
+items with the user before posting, never edit the database directly.
+
+## Refuel entry workflow
+
+Photos of odometer + fuel receipt → odometer km from the dashboard photo,
+date/liters/total from the receipt → `POST /api/vehicles/:id/odometer`.
+Confirm parsed values with the user before posting.
 
 ## Conventions
 
 - No fallback values anywhere; missing config/fields must throw.
 - Server-rendered Hono JSX, no client-side JS. Styling in `public/style.css`.
+- Keep `public/openapi.json` in sync when changing endpoints.
 - `seed.sql` and the xlsx files are personal data: gitignored, never commit.

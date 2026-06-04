@@ -171,26 +171,41 @@ main { max-width: 680px; margin: 0 auto; padding: 16px 12px 48px; }
 .chip.done { background: #172b17; color: var(--green); border: 1px solid #1a4d1a; }
 
 .session-list { list-style: none; margin: 0; padding: 0; }
-.session-row {
+.visit-row {
   display: grid;
-  grid-template-columns: 44px 1fr auto;
-  grid-template-areas: 'seq date km' 'seq count total';
-  gap: 0 10px; align-items: center;
-  padding: 10px 8px; margin-bottom: 6px;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: 'date km' 'vendor vendor' 'count total';
+  gap: 1px 10px; align-items: center;
+  padding: 10px 10px; margin-bottom: 6px;
   text-decoration: none; color: inherit;
   background: #222227; border: 1px solid var(--panel-edge); border-radius: 3px;
   transition: border-color 0.15s;
 }
-.session-row:hover { border-color: var(--orange); }
-.session-seq {
-  grid-area: seq; font-family: var(--mono); font-weight: 600;
-  color: var(--orange); font-size: 19px;
+.visit-row:hover { border-color: var(--orange); }
+.visit-date { grid-area: date; font-weight: 600; }
+.visit-vendor {
+  grid-area: vendor; color: var(--orange); font-size: 15px;
+  letter-spacing: 0.04em; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
-.session-date { grid-area: date; font-weight: 600; }
-.session-km { grid-area: km; font-family: var(--mono); font-size: 14px; text-align: right; }
-.session-count { grid-area: count; color: var(--ink-dim); font-size: 14px; }
-.session-total { grid-area: total; }
-.session-row .money { grid-area: total; text-align: right; }
+.visit-km { grid-area: km; font-size: 13px; text-align: right; color: var(--ink-dim); }
+.visit-count { grid-area: count; color: var(--ink-dim); font-size: 14px; }
+.visit-row .money { grid-area: total; text-align: right; }
+
+.chip.label { background: #26262c; color: var(--ink-dim); border: 1px solid #3a3a42; font-weight: 500; }
+.chip.cat { background: #1d2530; color: #7fb3e8; border: 1px solid #2a3a4d; margin-left: 6px; }
+
+.attachment-list { list-style: none; margin: 0; padding: 0; }
+.attachment-list li {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 4px; border-bottom: 1px solid #26262c;
+}
+.attachment-list a { color: var(--ink); }
+.attachment-list a:hover { color: var(--orange); }
+.attachment-list .inline-form { margin: 0 0 0 auto; }
+
+input[type='file'] {
+  padding: 8px; border: 1px dashed #3a3a42; background: #101013; color: var(--ink-dim);
+}
 
 /* ---- items table ---- */
 
