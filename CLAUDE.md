@@ -26,6 +26,10 @@ values with the user before posting.
 
 ## Conventions
 
+- Record entry (receipts, refuels) goes through the API — never direct SQL.
+  Administrative corrections (vehicle renames, fixing a typo'd row) go via
+  `wrangler d1 execute --remote` directly; don't build edit UIs/endpoints
+  for them — 4 vehicles, 1 user, not worth the surface area.
 - No fallback values anywhere; missing config/fields must throw.
 - Server-rendered Hono JSX, no client-side JS. Styling in `public/style.css`.
 - Keep `public/openapi.json` in sync when changing endpoints.
