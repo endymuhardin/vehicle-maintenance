@@ -10,10 +10,19 @@ export type OdometerLogRow = {
   note: string | null
 }
 
+export type FuelAttachment = {
+  id: number
+  odometer_log_id: number
+  filename: string
+  content_type: string
+  size: number
+}
+
 export type FuelEntry = OdometerLogRow & {
   // km/l vs the previous FUEL entry (full-tank method); null for the first
   // fuel entry or plain odometer readings.
   km_per_liter: number | null
+  attachments: FuelAttachment[]
 }
 
 export type FuelSummary = {
@@ -29,6 +38,18 @@ export async function fuelLog(env: Env, vehicleId: number): Promise<FuelSummary>
   const { results } = await env.DB.prepare(
     'SELECT * FROM odometer_logs WHERE vehicle_id = ? ORDER BY odometer_km, id',
   ).bind(vehicleId).all<OdometerLogRow>()
+
+  const { results: attachmentRows } = await env.DB.prepare(`
+    SELECT a.id, a.odometer_log_id, a.filename, a.content_type, a.size
+    FROM attachments a JOIN odometer_logs o ON o.id = a.odometer_log_id
+    WHERE o.vehicle_id = ? ORDER BY a.id
+  `).bind(vehicleId).all<FuelAttachment>()
+  const attachmentsByLog = new Map<number, FuelAttachment[]>()
+  for (const a of attachmentRows) {
+    const list = attachmentsByLog.get(a.odometer_log_id)
+    if (list) list.push(a)
+    else attachmentsByLog.set(a.odometer_log_id, [a])
+  }
 
   const entries: FuelEntry[] = []
   let prevFuelKm: number | null = null
@@ -51,7 +72,7 @@ export async function fuelLog(env: Env, vehicleId: number): Promise<FuelSummary>
       totalFuelCost += row.total ?? 0
       totalLiters += row.liters
     }
-    entries.push({ ...row, km_per_liter: kmPerLiter })
+    entries.push({ ...row, km_per_liter: kmPerLiter, attachments: attachmentsByLog.get(row.id) ?? [] })
   }
 
   const avg =

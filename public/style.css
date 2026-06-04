@@ -312,3 +312,6 @@ button.ghost.danger:hover { color: var(--red); border-color: var(--red); }
 @media (min-width: 560px) {
   .vehicle-grid { grid-template-columns: 1fr 1fr; }
 }
+
+.attach-cell { white-space: nowrap; }
+.attach-cell a { text-decoration: none; font-size: 13px; }

@@ -192,7 +192,7 @@ const FuelSection: FC<{ vehicle: VehicleRow; fuel: FuelSummary }> = ({ vehicle, 
     ) : (
       <table class="items">
         <thead>
-          <tr><th>tanggal</th><th class="num">km</th><th class="num">liter</th><th class="num">harga</th><th class="num">km/l</th><th /></tr>
+          <tr><th>tanggal</th><th class="num">km</th><th class="num">liter</th><th class="num">harga</th><th class="num">km/l</th><th /><th /></tr>
         </thead>
         <tbody>
           {fuel.entries.slice(0, 15).map((e) => (
@@ -202,6 +202,11 @@ const FuelSection: FC<{ vehicle: VehicleRow; fuel: FuelSummary }> = ({ vehicle, 
               <td class="num mono">{e.liters !== null ? e.liters.toLocaleString('id-ID') : '—'}</td>
               <td class="num mono">{e.total !== null ? e.total.toLocaleString('id-ID') : '—'}</td>
               <td class="num mono">{e.km_per_liter !== null ? e.km_per_liter.toFixed(1) : '—'}</td>
+              <td class="attach-cell">
+                {e.attachments.map((a) => (
+                  <a href={`/attachments/${a.id}`} target="_blank" rel="noopener" title={a.filename}>📎</a>
+                ))}
+              </td>
               <td class="rowact">
                 <form method="post" action={`/odometer/${e.id}/delete`} onsubmit="return confirm('Hapus catatan ini?')">
                   <button type="submit" class="ghost small danger" title="hapus">×</button>
@@ -214,7 +219,7 @@ const FuelSection: FC<{ vehicle: VehicleRow; fuel: FuelSummary }> = ({ vehicle, 
     )}
     <details class="adder">
       <summary>+ catat odometer / isi bensin</summary>
-      <form method="post" action={`/vehicles/${vehicle.id}/odometer`} class="stack">
+      <form method="post" action={`/vehicles/${vehicle.id}/odometer`} enctype="multipart/form-data" class="stack">
         <div class="row2">
           <label>tanggal <input type="date" name="date" required /></label>
           <label>odometer (km) <input type="number" name="odometer_km" min="0" required /></label>
@@ -224,6 +229,9 @@ const FuelSection: FC<{ vehicle: VehicleRow; fuel: FuelSummary }> = ({ vehicle, 
           <label>total harga (opsional) <input type="number" name="total" min="0" /></label>
         </div>
         <input name="note" placeholder="catatan (SPBU, jenis BBM)" />
+        <label>foto odometer / struk (opsional)
+          <input type="file" name="files" accept="image/*" multiple />
+        </label>
         <button type="submit" class="primary">simpan</button>
       </form>
     </details>

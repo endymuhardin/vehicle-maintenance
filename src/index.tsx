@@ -116,9 +116,19 @@ async function insertVisit(
   return result.meta.last_row_id as number
 }
 
-async function storeAttachments(env: Env, visitId: number, files: File[]): Promise<AttachmentRow[]> {
-  if (files.length === 0) throw new HTTPException(400, { message: 'no files uploaded' })
-  const stored: AttachmentRow[] = []
+type AttachmentOwner = { visit_id: number } | { odometer_log_id: number }
+
+async function storeAttachments(
+  env: Env, owner: AttachmentOwner, files: File[], required = true,
+): Promise<{ id: number; filename: string; size: number }[]> {
+  if (files.length === 0) {
+    if (!required) return []
+    throw new HTTPException(400, { message: 'no files uploaded' })
+  }
+  const visitId = 'visit_id' in owner ? owner.visit_id : null
+  const logId = 'odometer_log_id' in owner ? owner.odometer_log_id : null
+  const prefix = visitId !== null ? `visits/${visitId}` : `fuel/${logId}`
+  const stored: { id: number; filename: string; size: number }[] = []
   for (const file of files) {
     if (!ATTACHMENT_TYPES.test(file.type)) {
       throw new HTTPException(400, { message: `unsupported file type: ${file.type} (${file.name})` })
@@ -126,19 +136,15 @@ async function storeAttachments(env: Env, visitId: number, files: File[]): Promi
     if (file.size > MAX_ATTACHMENT_BYTES) {
       throw new HTTPException(400, { message: `file too large (max 10 MB): ${file.name}` })
     }
-    const key = `visits/${visitId}/${crypto.randomUUID()}-${file.name}`
+    const key = `${prefix}/${crypto.randomUUID()}-${file.name}`
     await env.RECEIPTS.put(key, file.stream(), {
       httpMetadata: { contentType: file.type },
     })
     const result = await env.DB.prepare(`
-      INSERT INTO attachments (visit_id, r2_key, filename, content_type, size, uploaded_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).bind(visitId, key, file.name, file.type, file.size, new Date().toISOString()).run()
-    stored.push({
-      id: result.meta.last_row_id as number,
-      visit_id: visitId, filename: file.name, content_type: file.type,
-      size: file.size, uploaded_at: new Date().toISOString(),
-    })
+      INSERT INTO attachments (visit_id, odometer_log_id, r2_key, filename, content_type, size, uploaded_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).bind(visitId, logId, key, file.name, file.type, file.size, new Date().toISOString()).run()
+    stored.push({ id: result.meta.last_row_id as number, filename: file.name, size: file.size })
   }
   return stored
 }
@@ -314,12 +320,32 @@ api.post('/visits/:id/attachments', async (c) => {
   const visitId = needInt(c.req.param('id'), 'id')
   await getVisit(c.env, visitId)
   const body = await c.req.parseBody({ all: true })
-  const stored = await storeAttachments(c.env, visitId, formFiles(body))
-  return c.json({ visit_id: visitId, uploaded: stored.map(({ id, filename, size }) => ({ id, filename, size })) }, 201)
+  const stored = await storeAttachments(c.env, { visit_id: visitId }, formFiles(body))
+  return c.json({ visit_id: visitId, uploaded: stored }, 201)
+})
+
+// Refuel photos (odometer + struk SPBU): multipart, field "files".
+api.post('/odometer/:id/attachments', async (c) => {
+  const logId = needInt(c.req.param('id'), 'id')
+  const log = await c.env.DB.prepare('SELECT id FROM odometer_logs WHERE id = ?').bind(logId).first()
+  if (!log) throw new HTTPException(404, { message: `odometer log ${logId} not found` })
+  const body = await c.req.parseBody({ all: true })
+  const stored = await storeAttachments(c.env, { odometer_log_id: logId }, formFiles(body))
+  return c.json({ odometer_log_id: logId, uploaded: stored }, 201)
 })
 
 api.get('/attachments/:id', async (c) => {
   return serveAttachment(c.env, needInt(c.req.param('id'), 'id'))
+})
+
+api.delete('/attachments/:id', async (c) => {
+  const id = needInt(c.req.param('id'), 'id')
+  const meta = await c.env.DB.prepare('SELECT r2_key FROM attachments WHERE id = ?')
+    .bind(id).first<{ r2_key: string }>()
+  if (!meta) throw new HTTPException(404, { message: `attachment ${id} not found` })
+  await c.env.RECEIPTS.delete(meta.r2_key)
+  await c.env.DB.prepare('DELETE FROM attachments WHERE id = ?').bind(id).run()
+  return c.json({ id, deleted: true })
 })
 
 // Odometer / fuel log. liters+total present = refuel entry, both absent =
@@ -491,7 +517,7 @@ app.post('/visits/:id/attachments', async (c) => {
   const visitId = needInt(c.req.param('id'), 'id')
   await getVisit(c.env, visitId)
   const body = await c.req.parseBody({ all: true })
-  await storeAttachments(c.env, visitId, formFiles(body))
+  await storeAttachments(c.env, { visit_id: visitId }, formFiles(body))
   return c.redirect(`/visits/${visitId}`)
 })
 
@@ -501,12 +527,15 @@ app.get('/attachments/:id', async (c) => {
 
 app.post('/attachments/:id/delete', async (c) => {
   const id = needInt(c.req.param('id'), 'id')
-  const meta = await c.env.DB.prepare('SELECT visit_id, r2_key FROM attachments WHERE id = ?')
-    .bind(id).first<{ visit_id: number; r2_key: string }>()
+  const meta = await c.env.DB.prepare(`
+    SELECT a.visit_id, a.odometer_log_id, a.r2_key, o.vehicle_id AS log_vehicle_id
+    FROM attachments a LEFT JOIN odometer_logs o ON o.id = a.odometer_log_id
+    WHERE a.id = ?
+  `).bind(id).first<{ visit_id: number | null; odometer_log_id: number | null; r2_key: string; log_vehicle_id: number | null }>()
   if (!meta) throw new HTTPException(404, { message: `attachment ${id} not found` })
   await c.env.RECEIPTS.delete(meta.r2_key)
   await c.env.DB.prepare('DELETE FROM attachments WHERE id = ?').bind(id).run()
-  return c.redirect(`/visits/${meta.visit_id}`)
+  return c.redirect(meta.visit_id !== null ? `/visits/${meta.visit_id}` : `/vehicles/${meta.log_vehicle_id}`)
 })
 
 app.post('/vehicles/:id/odometer', async (c) => {
@@ -520,7 +549,7 @@ app.post('/vehicles/:id/odometer', async (c) => {
   if ((litersRaw === null) !== (totalRaw === null)) {
     throw new HTTPException(400, { message: 'liter dan total harus diisi bersamaan' })
   }
-  await c.env.DB.prepare(
+  const result = await c.env.DB.prepare(
     'INSERT INTO odometer_logs (vehicle_id, date, odometer_km, liters, total, note) VALUES (?, ?, ?, ?, ?, ?)',
   ).bind(
     vehicleId, date, odometerKm,
@@ -528,6 +557,9 @@ app.post('/vehicles/:id/odometer', async (c) => {
     totalRaw === null ? null : needNum(totalRaw, 'total'),
     optionalField(form, 'note'),
   ).run()
+  const files = (form.getAll('files') as unknown[])
+    .filter((f): f is File => f instanceof File && f.size > 0)
+  await storeAttachments(c.env, { odometer_log_id: result.meta.last_row_id as number }, files, false)
   return c.redirect(`/vehicles/${vehicleId}`)
 })
 

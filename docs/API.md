@@ -47,9 +47,11 @@ API — never edit the database directly.
 ## Refuel entry workflow
 
 Photos of odometer + fuel receipt → odometer km from the dashboard photo,
-date/liters/total from the receipt → `POST /api/vehicles/:id/odometer`.
-Full-tank refuels keep km/l accurate. A plain odometer reading (no
-liters/total) is also valid anytime — it keeps km-based reminders fresh.
+date/liters/total from the receipt → `POST /api/vehicles/:id/odometer`, then
+archive the photos with `POST /api/odometer/:id/attachments` (multipart,
+field `files`). Full-tank refuels keep km/l accurate. A plain odometer
+reading (no liters/total) is also valid anytime — it keeps km-based
+reminders fresh.
 
 ## Conventions
 
@@ -87,7 +89,9 @@ liters/total) is also valid anytime — it keeps km-based reminders fresh.
 | GET | `/api/visits/:id` | visit + items + attachment metadata |
 | POST | `/api/visits/:id/items` | append `{items: [...]}` (non-empty) |
 | POST | `/api/visits/:id/attachments` | multipart upload, field `files` (image/pdf, ≤10 MB each) |
+| POST | `/api/odometer/:id/attachments` | refuel photos onto an odometer log entry (same format) |
 | GET | `/api/attachments/:id` | download the file (binary) |
+| DELETE | `/api/attachments/:id` | remove an attachment (R2 object + metadata) |
 | GET | `/api/vehicles/:id/odometer` | fuel log + km/l + averages |
 | POST | `/api/vehicles/:id/odometer` | `{date, odometer_km, liters?, total?, note?}` |
 | POST | `/api/items/:id/done` | mark checkpoint handled |

@@ -3,7 +3,7 @@
   "info": {
     "title": "Garasi Log API",
     "version": "2.0.0",
-    "description": "Vehicle maintenance record API. All endpoints require `Authorization: Bearer <API_TOKEN>`.\n\n## Model\n\n`vehicles → visits → line_items`, plus `odometer_logs` (refuels/readings) and `attachments` (receipt photos in R2). **One receipt = one visit.** Visits can carry an optional `label` to group related visits (e.g. one maintenance campaign across several shops).\n\n## Conventions\n\n- Money: full rupiah, integer (`108000`, never `108` or `108.000`)\n- Dates: ISO `yyyy-mm-dd` strings\n- `category` is required on every item: `rutin` | `aksesoris` | `administratif`\n- No silent defaults: missing required fields return `400 {\"error\": \"missing field: <name>\"}`. Exception: `total` is computed as `round(unit_price × qty)` when omitted\n- `due_km` is an **absolute odometer value**, not an interval: \"next oil change in 3000 km\" at odometer 32000 → `due_km: 35000`\n\n## Receipt entry workflow\n\nWhen entering a workshop receipt (photo or text):\n\n1. `GET /api/vehicles` to resolve the vehicle id; ask if the receipt doesn't clearly match one vehicle\n2. Create one visit per receipt: `POST /api/vehicles/{id}/visits` with `date`, `vendor`, `odometer_km` (when known), optional `label` for grouping, and `items`\n3. Normalize prices to full-rupiah integers (\"60rb\" → 60000, \"1,2jt\" → 1200000)\n4. If a next-service interval is mentioned, set `due_date` and/or `due_km` (absolute odometer) on that item\n5. Upload the receipt photo(s): `POST /api/visits/{id}/attachments` (multipart, field `files`)\n6. Confirm the parsed items with the user before posting\n\n## Refuel entry workflow\n\nWhen given odometer + fuel receipt photos: read the odometer km from the dashboard photo and date/liters/total from the receipt, then `POST /api/vehicles/{id}/odometer`. Full-tank refuels make km/l accurate; log a plain odometer reading (no liters/total) anytime to keep reminders fresh.\n\n## Reminders\n\nA checkpoint becomes *due* when `due_date` is within `REMINDER_DAYS_AHEAD` (14) days, or `due_km` is within `REMINDER_KM_AHEAD` (500) km of the vehicle's current odometer (max over visit odometers and the odometer/fuel log). Sold vehicles are excluded. Due checkpoints are sent daily at 05:00 WIB via Telegram.",
+    "description": "Vehicle maintenance record API. All endpoints require `Authorization: Bearer <API_TOKEN>`.\n\n## Model\n\n`vehicles → visits → line_items`, plus `odometer_logs` (refuels/readings) and `attachments` (receipt photos in R2). **One receipt = one visit.** Visits can carry an optional `label` to group related visits (e.g. one maintenance campaign across several shops).\n\n## Conventions\n\n- Money: full rupiah, integer (`108000`, never `108` or `108.000`)\n- Dates: ISO `yyyy-mm-dd` strings\n- `category` is required on every item: `rutin` | `aksesoris` | `administratif`\n- No silent defaults: missing required fields return `400 {\"error\": \"missing field: <name>\"}`. Exception: `total` is computed as `round(unit_price × qty)` when omitted\n- `due_km` is an **absolute odometer value**, not an interval: \"next oil change in 3000 km\" at odometer 32000 → `due_km: 35000`\n\n## Receipt entry workflow\n\nWhen entering a workshop receipt (photo or text):\n\n1. `GET /api/vehicles` to resolve the vehicle id; ask if the receipt doesn't clearly match one vehicle\n2. Create one visit per receipt: `POST /api/vehicles/{id}/visits` with `date`, `vendor`, `odometer_km` (when known), optional `label` for grouping, and `items`\n3. Normalize prices to full-rupiah integers (\"60rb\" → 60000, \"1,2jt\" → 1200000)\n4. If a next-service interval is mentioned, set `due_date` and/or `due_km` (absolute odometer) on that item\n5. Upload the receipt photo(s): `POST /api/visits/{id}/attachments` (multipart, field `files`)\n6. Confirm the parsed items with the user before posting\n\n## Refuel entry workflow\n\nWhen given odometer + fuel receipt photos: read the odometer km from the dashboard photo and date/liters/total from the receipt, then `POST /api/vehicles/{id}/odometer`, followed by `POST /api/odometer/{id}/attachments` to archive the photos. Full-tank refuels make km/l accurate; log a plain odometer reading (no liters/total) anytime to keep reminders fresh.\n\n## Reminders\n\nA checkpoint becomes *due* when `due_date` is within `REMINDER_DAYS_AHEAD` (14) days, or `due_km` is within `REMINDER_KM_AHEAD` (500) km of the vehicle's current odometer (max over visit odometers and the odometer/fuel log). Sold vehicles are excluded. Due checkpoints are sent daily at 05:00 WIB via Telegram.",
     "license": { "name": "MIT", "url": "https://github.com/endymuhardin/vehicle-maintenance/blob/main/LICENSE" }
   },
   "externalDocs": {
@@ -211,6 +211,48 @@
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "404": { "$ref": "#/components/responses/NotFound" }
         }
+      },
+      "delete": {
+        "tags": ["attachments"],
+        "summary": "Delete an attachment (R2 object + metadata)",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": {
+            "description": "Deleted",
+            "content": { "application/json": { "example": { "id": 8, "deleted": true } } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/odometer/{id}/attachments": {
+      "post": {
+        "tags": ["attachments", "fuel"],
+        "summary": "Upload refuel photos (odometer + struk SPBU) to an odometer log entry",
+        "description": "multipart/form-data with one or more files in the `files` field. Accepted: image/* and application/pdf, max 10 MB each. The entry's attachments appear in GET /api/vehicles/{id}/odometer.",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["files"],
+                "properties": { "files": { "type": "array", "items": { "type": "string", "format": "binary" } } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Files stored",
+            "content": { "application/json": { "example": { "odometer_log_id": 2, "uploaded": [{ "id": 10, "filename": "odo.jpg", "size": 411791 }] } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
       }
     },
     "/api/vehicles/{id}/odometer": {
@@ -412,7 +454,8 @@
           "liters": { "type": ["number", "null"] },
           "total": { "type": ["integer", "null"] },
           "note": { "type": ["string", "null"] },
-          "km_per_liter": { "type": ["number", "null"], "description": "vs previous fuel entry; null for first fill or plain readings" }
+          "km_per_liter": { "type": ["number", "null"], "description": "vs previous fuel entry; null for first fill or plain readings" },
+          "attachments": { "type": "array", "items": { "$ref": "#/components/schemas/Attachment" } }
         }
       },
       "FuelSummary": {

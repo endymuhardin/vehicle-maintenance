@@ -20,8 +20,9 @@ items with the user before posting, never edit the database directly.
 ## Refuel entry workflow
 
 Photos of odometer + fuel receipt → odometer km from the dashboard photo,
-date/liters/total from the receipt → `POST /api/vehicles/:id/odometer`.
-Confirm parsed values with the user before posting.
+date/liters/total from the receipt → `POST /api/vehicles/:id/odometer`, then
+upload the photos via `POST /api/odometer/:id/attachments`. Confirm parsed
+values with the user before posting.
 
 ## Conventions
 

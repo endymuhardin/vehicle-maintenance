@@ -50,15 +50,18 @@ CREATE TABLE odometer_logs (
   CHECK ((liters IS NULL) = (total IS NULL))
 );
 
--- Receipt photos / documents stored in R2, linked to a visit.
+-- Receipt photos / documents stored in R2, linked to exactly one owner:
+-- a visit (workshop receipt) or an odometer log entry (refuel photo).
 CREATE TABLE attachments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  visit_id INTEGER NOT NULL REFERENCES visits(id),
+  visit_id INTEGER REFERENCES visits(id),
+  odometer_log_id INTEGER REFERENCES odometer_logs(id),
   r2_key TEXT NOT NULL UNIQUE,
   filename TEXT NOT NULL,
   content_type TEXT NOT NULL,
   size INTEGER NOT NULL,
-  uploaded_at TEXT NOT NULL    -- ISO timestamp
+  uploaded_at TEXT NOT NULL,   -- ISO timestamp
+  CHECK ((visit_id IS NULL) <> (odometer_log_id IS NULL))
 );
 
 CREATE INDEX idx_visits_vehicle ON visits(vehicle_id, date);
@@ -66,3 +69,4 @@ CREATE INDEX idx_line_items_visit ON line_items(visit_id);
 CREATE INDEX idx_line_items_due ON line_items(checkpoint_done, due_date, due_km);
 CREATE INDEX idx_odometer_logs_vehicle ON odometer_logs(vehicle_id, odometer_km);
 CREATE INDEX idx_attachments_visit ON attachments(visit_id);
+CREATE INDEX idx_attachments_odolog ON attachments(odometer_log_id);
