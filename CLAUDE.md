@@ -5,21 +5,11 @@ and full API docs.
 
 ## Receipt entry workflow
 
-When given a workshop receipt (photo or text), parse it and POST to the JSON
-API — do not edit the database directly.
-
-1. Read `API_TOKEN` and `BASE_URL` from `.dev.vars` (gitignored). If either is
-   missing, stop and ask — do not guess.
-2. `GET /api/vehicles` to resolve the vehicle id (ask the user if ambiguous).
-3. Decide: new maintenance session (`POST /api/vehicles/:id/sessions` with
-   `date`, `odometer_km`, `items`) or append to an existing one
-   (`POST /api/sessions/:id/items`). Ask for the odometer reading if the
-   receipt doesn't show it.
-4. Prices are full rupiah integers. `category` is required per item:
-   `rutin` (servis/parts), `aksesoris`, or `administratif` (pajak, STNK, etc.).
-5. If the receipt or user mentions a next-service interval, set `due_date`
-   and/or `due_km` (absolute odometer value, not interval) on that item.
-6. Echo the parsed items back to the user for confirmation before posting.
+When given a workshop receipt (photo or text), follow `docs/API.md` — it
+contains the full workflow, endpoint reference with request/response examples,
+and a worked receipt→API example. Key rules: credentials come from `.dev.vars`
+(stop and ask if missing), confirm parsed items with the user before posting,
+never edit the database directly.
 
 ## Conventions
 

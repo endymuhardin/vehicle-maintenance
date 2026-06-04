@@ -65,6 +65,8 @@ npm run dev
 
 All endpoints require `Authorization: Bearer <API_TOKEN>`. Intended use:
 parse a workshop receipt (e.g. with Claude Code) and push it in one call.
+Full reference with request/response examples and the receipt-entry workflow:
+[docs/API.md](docs/API.md).
 
 | Method | Path | Body |
 |---|---|---|
