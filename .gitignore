@@ -1,0 +1,11 @@
+# personal data — never publish
+*.xlsx
+seed.sql
+
+# secrets for local dev
+.dev.vars
+.claude/settings.local.json
+
+# build/runtime
+node_modules/
+.wrangler/

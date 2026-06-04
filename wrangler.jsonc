@@ -1,0 +1,32 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "vehicle-maintenance",
+  "main": "src/index.tsx",
+  "compatibility_date": "2026-05-01",
+  "assets": {
+    "directory": "public",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "vehicle-maintenance",
+      "database_id": "8c07bec4-bb4c-48dc-889b-cc7abe7bbd5e"
+    }
+  ],
+  "triggers": {
+    // 22:00 UTC = 05:00 WIB daily
+    "crons": ["0 22 * * *"]
+  },
+  "vars": {
+    // notify when due_date is within this many days
+    "REMINDER_DAYS_AHEAD": "14",
+    // notify when due_km is within this many km of the vehicle's latest recorded odometer
+    "REMINDER_KM_AHEAD": "500"
+  }
+  // Secrets (set via `wrangler secret put <NAME>`):
+  //   APP_PASSWORD        — login password
+  //   SESSION_SECRET      — HMAC key for session cookie
+  //   TELEGRAM_BOT_TOKEN  — from @BotFather
+  //   TELEGRAM_CHAT_ID    — your chat id with the bot
+}

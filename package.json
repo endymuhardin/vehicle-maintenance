@@ -1,0 +1,21 @@
+{
+  "name": "vehicle-maintenance",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:schema:local": "wrangler d1 execute vehicle-maintenance --local --file=schema.sql",
+    "db:seed:local": "wrangler d1 execute vehicle-maintenance --local --file=seed.sql",
+    "db:schema:remote": "wrangler d1 execute vehicle-maintenance --remote --file=schema.sql",
+    "db:seed:remote": "wrangler d1 execute vehicle-maintenance --remote --file=seed.sql"
+  },
+  "dependencies": {
+    "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250101.0",
+    "typescript": "^5.7.0",
+    "wrangler": "^4.80.0"
+  }
+}
