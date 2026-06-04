@@ -3,6 +3,13 @@
 Vehicle maintenance app on Cloudflare Workers + D1. See README.md for setup
 and full API docs.
 
+## Refuel entry workflow
+
+When given odometer + fuel receipt photos: odometer km from the dashboard
+photo, date/liters/total from the receipt →
+`POST /api/vehicles/:id/odometer`. See docs/API.md. Confirm parsed values
+with the user before posting.
+
 ## Receipt entry workflow
 
 When given a workshop receipt (photo or text), follow `docs/API.md` — it

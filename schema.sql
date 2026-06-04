@@ -1,3 +1,4 @@
+DROP TABLE IF EXISTS odometer_logs;
 DROP TABLE IF EXISTS line_items;
 DROP TABLE IF EXISTS sessions;
 DROP TABLE IF EXISTS vehicles;
@@ -35,6 +36,22 @@ CREATE TABLE line_items (
   due_km INTEGER,              -- structured reminder against vehicle odometer
   checkpoint_done INTEGER NOT NULL CHECK (checkpoint_done IN (0, 1))
 );
+
+-- Odometer readings, typically logged at refueling. liters/total present =
+-- fuel entry (km/l computed against the previous fuel entry, assuming
+-- full-tank refuels); both NULL = plain odometer reading.
+CREATE TABLE odometer_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  vehicle_id INTEGER NOT NULL REFERENCES vehicles(id),
+  date TEXT NOT NULL,          -- ISO yyyy-mm-dd
+  odometer_km INTEGER NOT NULL,
+  liters REAL,                 -- fuel volume
+  total INTEGER,               -- rupiah paid
+  note TEXT,                   -- e.g. station, fuel type
+  CHECK ((liters IS NULL) = (total IS NULL))
+);
+
+CREATE INDEX idx_odometer_logs_vehicle ON odometer_logs(vehicle_id, odometer_km);
 
 CREATE INDEX idx_sessions_vehicle ON sessions(vehicle_id);
 CREATE INDEX idx_line_items_vehicle ON line_items(vehicle_id);

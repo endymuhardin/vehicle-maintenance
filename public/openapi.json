@@ -3,7 +3,7 @@
   "info": {
     "title": "Garasi Log API",
     "version": "1.0.0",
-    "description": "Vehicle maintenance record API. All endpoints require `Authorization: Bearer <API_TOKEN>`.\n\n## Conventions\n\n- Money: full rupiah, integer (`108000`, never `108` or `108.000`)\n- Dates: ISO `yyyy-mm-dd` strings\n- `category` is required on every item: `rutin` | `aksesoris` | `administratif`\n- No silent defaults: missing required fields return `400 {\"error\": \"missing field: <name>\"}`. Exception: `total` is computed as `round(unit_price × qty)` when omitted\n- `due_km` is an **absolute odometer value**, not an interval: \"next oil change in 3000 km\" at odometer 32000 → `due_km: 35000`\n\n## Receipt entry workflow\n\nWhen entering a workshop receipt (photo or text):\n\n1. `GET /api/vehicles` to resolve the vehicle id; ask if the receipt doesn't clearly match one vehicle\n2. Decide where the items go:\n   - routine service visit → new session: `POST /api/vehicles/{id}/sessions` with `date`, `odometer_km`, `items`. Ask for the odometer reading if the receipt doesn't show it\n   - follow-up work belonging to a recent visit → append: `POST /api/sessions/{id}/items`\n   - accessories or administrative costs (pajak, STNK, balik nama) → sessionless: `POST /api/vehicles/{id}/items`\n3. Normalize prices to full-rupiah integers (\"60rb\" → 60000, \"1,2jt\" → 1200000)\n4. If a next-service interval is mentioned, set `due_date` and/or `due_km` (absolute odometer) on that item\n5. Confirm the parsed items with the user before posting\n\nA checkpoint becomes *due* when `due_date` is within `REMINDER_DAYS_AHEAD` (14) days, or `due_km` is within `REMINDER_KM_AHEAD` (500) km of the vehicle's latest session odometer. Sold vehicles are excluded. Due checkpoints are sent daily at 05:00 WIB via Telegram.",
+    "description": "Vehicle maintenance record API. All endpoints require `Authorization: Bearer <API_TOKEN>`.\n\n## Conventions\n\n- Money: full rupiah, integer (`108000`, never `108` or `108.000`)\n- Dates: ISO `yyyy-mm-dd` strings\n- `category` is required on every item: `rutin` | `aksesoris` | `administratif`\n- No silent defaults: missing required fields return `400 {\"error\": \"missing field: <name>\"}`. Exception: `total` is computed as `round(unit_price × qty)` when omitted\n- `due_km` is an **absolute odometer value**, not an interval: \"next oil change in 3000 km\" at odometer 32000 → `due_km: 35000`\n\n## Receipt entry workflow\n\nWhen entering a workshop receipt (photo or text):\n\n1. `GET /api/vehicles` to resolve the vehicle id; ask if the receipt doesn't clearly match one vehicle\n2. Decide where the items go:\n   - routine service visit → new session: `POST /api/vehicles/{id}/sessions` with `date`, `odometer_km`, `items`. Ask for the odometer reading if the receipt doesn't show it\n   - follow-up work belonging to a recent visit → append: `POST /api/sessions/{id}/items`\n   - accessories or administrative costs (pajak, STNK, balik nama) → sessionless: `POST /api/vehicles/{id}/items`\n3. Normalize prices to full-rupiah integers (\"60rb\" → 60000, \"1,2jt\" → 1200000)\n4. If a next-service interval is mentioned, set `due_date` and/or `due_km` (absolute odometer) on that item\n5. Confirm the parsed items with the user before posting\n\nA checkpoint becomes *due* when `due_date` is within `REMINDER_DAYS_AHEAD` (14) days, or `due_km` is within `REMINDER_KM_AHEAD` (500) km of the vehicle's current odometer (max over maintenance sessions and the odometer/fuel log). Sold vehicles are excluded. Due checkpoints are sent daily at 05:00 WIB via Telegram.\n\n## Refuel entry workflow\n\nWhen given odometer + fuel receipt photos: read the odometer km from the dashboard photo and date/liters/total from the receipt, then `POST /api/vehicles/{id}/odometer`. Full-tank refuels make km/l accurate; log a plain odometer reading (no liters/total) anytime to keep reminders fresh.",
     "license": { "name": "MIT", "url": "https://github.com/endymuhardin/vehicle-maintenance/blob/main/LICENSE" }
   },
   "externalDocs": {
@@ -15,7 +15,8 @@
   "tags": [
     { "name": "vehicles" },
     { "name": "sessions" },
-    { "name": "checkpoints" }
+    { "name": "checkpoints" },
+    { "name": "fuel" }
   ],
   "paths": {
     "/api/vehicles": {
@@ -209,6 +210,69 @@
         }
       }
     },
+    "/api/vehicles/{id}/odometer": {
+      "get": {
+        "tags": ["fuel"],
+        "summary": "Odometer / fuel log with km/l calculations",
+        "description": "Entries newest first. `km_per_liter` is computed per fuel entry against the previous fuel entry (full-tank method). `avg_km_per_liter` spans first to last fill.",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": {
+            "description": "Fuel log summary",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FuelSummary" },
+                "example": {
+                  "entries": [
+                    { "id": 2, "vehicle_id": 3, "date": "2026-05-20", "odometer_km": 61550, "liters": 3.2, "total": 43200, "note": "Pertalite", "km_per_liter": 46.88 },
+                    { "id": 1, "vehicle_id": 3, "date": "2026-05-01", "odometer_km": 61400, "liters": 3.5, "total": 47250, "note": "Pertalite", "km_per_liter": null }
+                  ],
+                  "avg_km_per_liter": 46.88,
+                  "total_fuel_cost": 90450,
+                  "total_liters": 6.7
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "post": {
+        "tags": ["fuel"],
+        "summary": "Log an odometer reading, optionally with refuel data",
+        "description": "With `liters` + `total`: a refuel entry (full tank assumed for km/l accuracy). Without both: a plain odometer reading. Providing only one of the two is a 400. Odometer readings feed the reminder engine: a vehicle's current km = max over sessions and this log.",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["date", "odometer_km"],
+                "properties": {
+                  "date": { "type": "string", "format": "date" },
+                  "odometer_km": { "type": "integer" },
+                  "liters": { "type": "number" },
+                  "total": { "type": "integer", "description": "Rupiah paid" },
+                  "note": { "type": "string", "description": "e.g. station, fuel type" }
+                }
+              },
+              "example": { "date": "2026-06-04", "odometer_km": 48210, "liters": 8.5, "total": 110500, "note": "Pertamax, Shell Cibinong" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created entry with computed km/l",
+            "content": { "application/json": { "example": { "id": 3, "vehicle_id": 4, "date": "2026-06-04", "odometer_km": 48210, "liters": 8.5, "total": 110500, "note": "Pertamax", "km_per_liter": 44.1, "avg_km_per_liter": 45.2 } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
     "/api/items/{id}/done": {
       "post": {
         "tags": ["checkpoints"],
@@ -351,6 +415,28 @@
             }
           }
         ]
+      },
+      "FuelEntry": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "vehicle_id": { "type": "integer" },
+          "date": { "type": "string", "format": "date" },
+          "odometer_km": { "type": "integer" },
+          "liters": { "type": ["number", "null"] },
+          "total": { "type": ["integer", "null"] },
+          "note": { "type": ["string", "null"] },
+          "km_per_liter": { "type": ["number", "null"], "description": "vs previous fuel entry; null for first fill or plain readings" }
+        }
+      },
+      "FuelSummary": {
+        "type": "object",
+        "properties": {
+          "entries": { "type": "array", "items": { "$ref": "#/components/schemas/FuelEntry" } },
+          "avg_km_per_liter": { "type": ["number", "null"] },
+          "total_fuel_cost": { "type": "integer" },
+          "total_liters": { "type": "number" }
+        }
       },
       "DueItem": {
         "type": "object",

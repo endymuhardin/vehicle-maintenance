@@ -4,6 +4,7 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
 import { Env, requireEnv } from './env'
 import { createSessionToken, verifySessionToken, SESSION_TTL_SECONDS } from './auth'
 import { findDueItems, runReminderCheck } from './reminders'
+import { fuelLog } from './fuel'
 import {
   Dashboard, LoginPage, SessionPage, VehiclePage,
   VehicleRow, SessionRow, ItemRow, DueRow,
@@ -50,7 +51,11 @@ function needIsoDate(value: string, name: string): string {
 async function getVehicle(env: Env, id: number): Promise<VehicleRow> {
   const row = await env.DB.prepare(`
     SELECT v.id, v.name, v.status,
-      (SELECT MAX(odometer_km) FROM sessions s WHERE s.vehicle_id = v.id) AS latest_km,
+      (SELECT MAX(mk) FROM (
+         SELECT MAX(s.odometer_km) AS mk FROM sessions s WHERE s.vehicle_id = v.id
+         UNION ALL
+         SELECT MAX(o.odometer_km) FROM odometer_logs o WHERE o.vehicle_id = v.id
+      )) AS latest_km,
       (SELECT MAX(date) FROM sessions s WHERE s.vehicle_id = v.id) AS last_date,
       (SELECT COUNT(*) FROM sessions s WHERE s.vehicle_id = v.id) AS session_count,
       (SELECT COALESCE(SUM(total), 0) FROM line_items li WHERE li.vehicle_id = v.id) AS spend
@@ -169,7 +174,11 @@ function parseApiItem(raw: unknown, vehicleId: number, sessionId: number | null)
 api.get('/vehicles', async (c) => {
   const { results } = await c.env.DB.prepare(`
     SELECT v.id, v.name, v.status,
-      (SELECT MAX(odometer_km) FROM sessions s WHERE s.vehicle_id = v.id) AS latest_km,
+      (SELECT MAX(mk) FROM (
+         SELECT MAX(s.odometer_km) AS mk FROM sessions s WHERE s.vehicle_id = v.id
+         UNION ALL
+         SELECT MAX(o.odometer_km) FROM odometer_logs o WHERE o.vehicle_id = v.id
+      )) AS latest_km,
       (SELECT COUNT(*) FROM sessions s WHERE s.vehicle_id = v.id) AS session_count,
       (SELECT COALESCE(SUM(total), 0) FROM line_items li WHERE li.vehicle_id = v.id) AS spend
     FROM vehicles v ORDER BY v.id
@@ -263,6 +272,35 @@ api.post('/vehicles/:id/items', async (c) => {
   return c.json({ vehicle_id: vehicleId, inserted: items.length }, 201)
 })
 
+// Odometer / fuel log. liters+total present = refuel entry, both absent =
+// plain odometer reading.
+api.get('/vehicles/:id/odometer', async (c) => {
+  const vehicleId = needInt(c.req.param('id'), 'id')
+  await getVehicle(c.env, vehicleId)
+  return c.json(await fuelLog(c.env, vehicleId))
+})
+
+api.post('/vehicles/:id/odometer', async (c) => {
+  const vehicleId = needInt(c.req.param('id'), 'id')
+  await getVehicle(c.env, vehicleId)
+  const body = await c.req.json<Record<string, unknown>>()
+  const date = needIsoDate(jsonString(body, 'date'), 'date')
+  const odometerKm = jsonNumber(body, 'odometer_km')
+  const liters = jsonOptNumber(body, 'liters')
+  const total = jsonOptNumber(body, 'total')
+  if ((liters === null) !== (total === null)) {
+    throw new HTTPException(400, { message: 'liters and total must be provided together' })
+  }
+  const result = await c.env.DB.prepare(
+    'INSERT INTO odometer_logs (vehicle_id, date, odometer_km, liters, total, note) VALUES (?, ?, ?, ?, ?, ?)',
+  ).bind(vehicleId, date, odometerKm, liters, total, jsonOptString(body, 'note')).run()
+  const id = result.meta.last_row_id as number
+  const log = await fuelLog(c.env, vehicleId)
+  const entry = log.entries.find((e) => e.id === id)
+  if (!entry) throw new Error(`inserted odometer log ${id} not found`)
+  return c.json({ ...entry, avg_km_per_liter: log.avg_km_per_liter }, 201)
+})
+
 api.post('/items/:id/done', async (c) => {
   const id = needInt(c.req.param('id'), 'id')
   const result = await c.env.DB.prepare('UPDATE line_items SET checkpoint_done = 1 WHERE id = ?').bind(id).run()
@@ -311,7 +349,11 @@ app.use('*', async (c, next) => {
 app.get('/', async (c) => {
   const { results: vehicles } = await c.env.DB.prepare(`
     SELECT v.id, v.name, v.status,
-      (SELECT MAX(odometer_km) FROM sessions s WHERE s.vehicle_id = v.id) AS latest_km,
+      (SELECT MAX(mk) FROM (
+         SELECT MAX(s.odometer_km) AS mk FROM sessions s WHERE s.vehicle_id = v.id
+         UNION ALL
+         SELECT MAX(o.odometer_km) FROM odometer_logs o WHERE o.vehicle_id = v.id
+      )) AS latest_km,
       (SELECT MAX(date) FROM sessions s WHERE s.vehicle_id = v.id) AS last_date,
       (SELECT COUNT(*) FROM sessions s WHERE s.vehicle_id = v.id) AS session_count,
       (SELECT COALESCE(SUM(total), 0) FROM line_items li WHERE li.vehicle_id = v.id) AS spend
@@ -343,7 +385,8 @@ app.get('/vehicles/:id', async (c) => {
   const { results: extras } = await c.env.DB.prepare(
     'SELECT * FROM line_items WHERE vehicle_id = ? AND session_id IS NULL ORDER BY date, id',
   ).bind(id).all<ItemRow>()
-  return c.html(<VehiclePage vehicle={vehicle} sessions={sessions} extras={extras} />)
+  const fuel = await fuelLog(c.env, id)
+  return c.html(<VehiclePage vehicle={vehicle} sessions={sessions} extras={extras} fuel={fuel} />)
 })
 
 app.post('/vehicles/:id/status', async (c) => {
@@ -439,6 +482,37 @@ app.post('/vehicles/:id/items', async (c) => {
     due_km: null,
   }).run()
   return c.redirect(`/vehicles/${vehicleId}`)
+})
+
+app.post('/vehicles/:id/odometer', async (c) => {
+  const vehicleId = needInt(c.req.param('id'), 'id')
+  await getVehicle(c.env, vehicleId)
+  const form = await c.req.formData()
+  const date = needIsoDate(need(form, 'date'), 'date')
+  const odometerKm = needInt(need(form, 'odometer_km'), 'odometer_km')
+  const litersRaw = optionalField(form, 'liters')
+  const totalRaw = optionalField(form, 'total')
+  if ((litersRaw === null) !== (totalRaw === null)) {
+    throw new HTTPException(400, { message: 'liter dan total harus diisi bersamaan' })
+  }
+  await c.env.DB.prepare(
+    'INSERT INTO odometer_logs (vehicle_id, date, odometer_km, liters, total, note) VALUES (?, ?, ?, ?, ?, ?)',
+  ).bind(
+    vehicleId, date, odometerKm,
+    litersRaw === null ? null : needNum(litersRaw, 'liters'),
+    totalRaw === null ? null : needNum(totalRaw, 'total'),
+    optionalField(form, 'note'),
+  ).run()
+  return c.redirect(`/vehicles/${vehicleId}`)
+})
+
+app.post('/odometer/:id/delete', async (c) => {
+  const id = needInt(c.req.param('id'), 'id')
+  const row = await c.env.DB.prepare('SELECT vehicle_id FROM odometer_logs WHERE id = ?')
+    .bind(id).first<{ vehicle_id: number }>()
+  if (!row) throw new HTTPException(404, { message: `odometer log ${id} not found` })
+  await c.env.DB.prepare('DELETE FROM odometer_logs WHERE id = ?').bind(id).run()
+  return c.redirect(`/vehicles/${row.vehicle_id}`)
 })
 
 app.post('/items/:id/done', async (c) => {

@@ -22,7 +22,11 @@ export async function findDueItems(env: Env, now: Date): Promise<DueItem[]> {
   const { results } = await env.DB.prepare(`
     SELECT li.id, li.description, li.due_date, li.due_km,
            v.id AS vehicle_id, v.name AS vehicle_name,
-           (SELECT MAX(s.odometer_km) FROM sessions s WHERE s.vehicle_id = v.id) AS latest_km
+           (SELECT MAX(mk) FROM (
+              SELECT MAX(s.odometer_km) AS mk FROM sessions s WHERE s.vehicle_id = v.id
+              UNION ALL
+              SELECT MAX(o.odometer_km) FROM odometer_logs o WHERE o.vehicle_id = v.id
+           )) AS latest_km
     FROM line_items li
     JOIN vehicles v ON v.id = li.vehicle_id
     WHERE li.checkpoint_done = 0

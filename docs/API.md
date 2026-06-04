@@ -137,6 +137,29 @@ For `aksesoris` / `administratif` costs not tied to a maintenance session
 
 → `200 {"id": 195, "checkpoint_done": 1}`. Removes the item from reminders.
 
+### GET /api/vehicles/:id/odometer — fuel / odometer log
+
+Entries newest first with `km_per_liter` per fuel entry (distance since the
+previous fill ÷ liters of this fill — full-tank method), plus
+`avg_km_per_liter`, `total_fuel_cost`, `total_liters`.
+
+### POST /api/vehicles/:id/odometer — log odometer, optionally a refuel
+
+```json
+{"date": "2026-06-04", "odometer_km": 48210,
+ "liters": 8.5, "total": 110500, "note": "Pertamax, Shell Cibinong"}
+```
+
+`date` and `odometer_km` required. `liters` + `total` together make it a
+refuel entry (assume full tank for accurate km/l); both omitted = plain
+odometer reading. Only one of the two → 400. Returns the entry with computed
+`km_per_liter` and the running `avg_km_per_liter`.
+
+**Refuel photo workflow:** odometer km comes from the dashboard photo;
+date/liters/total from the fuel receipt. Odometer readings feed the reminder
+engine — current km = max over sessions and this log — so logging at each
+refuel keeps km-based reminders accurate.
+
 ### GET /api/due — currently due checkpoints
 
 What the daily Telegram cron would send. Due = `due_date` within

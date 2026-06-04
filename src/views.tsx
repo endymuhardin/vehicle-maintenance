@@ -1,4 +1,5 @@
 import type { Child, FC } from 'hono/jsx'
+import type { FuelSummary } from './fuel'
 
 export type VehicleRow = {
   id: number
@@ -179,11 +180,65 @@ const CATEGORY_LABEL: Record<string, string> = {
   administratif: 'Administratif',
 }
 
+const FuelSection: FC<{ vehicle: VehicleRow; fuel: FuelSummary }> = ({ vehicle, fuel }) => (
+  <section class="panel">
+    <h2 class="panel-title">⛽ BBM & Odometer</h2>
+    {fuel.avg_km_per_liter !== null ? (
+      <dl class="vehicle-stats">
+        <div><dt>rata-rata</dt><dd>{fuel.avg_km_per_liter.toFixed(1)} km/l</dd></div>
+        <div><dt>total bbm</dt><dd>{fuel.total_liters.toFixed(1)} l</dd></div>
+        <div><dt>total biaya bbm</dt><dd class="money">{rupiah(fuel.total_fuel_cost)}</dd></div>
+      </dl>
+    ) : null}
+    {fuel.entries.length === 0 ? (
+      <p class="muted">Belum ada catatan. Isi km saat mengisi bensin untuk hitung konsumsi (tangki penuh).</p>
+    ) : (
+      <table class="items">
+        <thead>
+          <tr><th>tanggal</th><th class="num">km</th><th class="num">liter</th><th class="num">harga</th><th class="num">km/l</th><th /></tr>
+        </thead>
+        <tbody>
+          {fuel.entries.slice(0, 15).map((e) => (
+            <tr>
+              <td class="date">{tanggal(e.date)}</td>
+              <td class="num mono">{e.odometer_km.toLocaleString('id-ID')}</td>
+              <td class="num mono">{e.liters !== null ? e.liters.toLocaleString('id-ID') : '—'}</td>
+              <td class="num mono">{e.total !== null ? e.total.toLocaleString('id-ID') : '—'}</td>
+              <td class="num mono">{e.km_per_liter !== null ? e.km_per_liter.toFixed(1) : '—'}</td>
+              <td class="rowact">
+                <form method="post" action={`/odometer/${e.id}/delete`} onsubmit="return confirm('Hapus catatan ini?')">
+                  <button type="submit" class="ghost small danger" title="hapus">×</button>
+                </form>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+    <details class="adder">
+      <summary>+ catat odometer / isi bensin</summary>
+      <form method="post" action={`/vehicles/${vehicle.id}/odometer`} class="stack">
+        <div class="row2">
+          <label>tanggal <input type="date" name="date" required /></label>
+          <label>odometer (km) <input type="number" name="odometer_km" min="0" required /></label>
+        </div>
+        <div class="row2">
+          <label>liter (opsional) <input type="number" name="liters" min="0" step="any" /></label>
+          <label>total harga (opsional) <input type="number" name="total" min="0" /></label>
+        </div>
+        <input name="note" placeholder="catatan (SPBU, jenis BBM)" />
+        <button type="submit" class="primary">simpan</button>
+      </form>
+    </details>
+  </section>
+)
+
 export const VehiclePage: FC<{
   vehicle: VehicleRow
   sessions: SessionRow[]
   extras: ItemRow[]
-}> = ({ vehicle, sessions, extras }) => {
+  fuel: FuelSummary
+}> = ({ vehicle, sessions, extras, fuel }) => {
   const extraCats = [...new Set(extras.map((e) => e.category))]
   return (
     <Layout title={vehicle.name}>
@@ -205,6 +260,8 @@ export const VehiclePage: FC<{
           </button>
         </form>
       </section>
+
+      <FuelSection vehicle={vehicle} fuel={fuel} />
 
       <section class="panel">
         <h2 class="panel-title">Sesi Perawatan</h2>
