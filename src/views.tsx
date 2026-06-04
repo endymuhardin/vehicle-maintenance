@@ -253,12 +253,6 @@ export const VehiclePage: FC<{
           <div><dt>servis</dt><dd>{vehicle.session_count}×</dd></div>
           <div><dt>total biaya</dt><dd class="money">{rupiah(vehicle.spend)}</dd></div>
         </dl>
-        <form method="post" action={`/vehicles/${vehicle.id}/status`} class="inline-form">
-          <input type="hidden" name="status" value={vehicle.status === 'active' ? 'sold' : 'active'} />
-          <button type="submit" class="ghost small">
-            {vehicle.status === 'active' ? 'tandai terjual' : 'aktifkan lagi'}
-          </button>
-        </form>
       </section>
 
       <FuelSection vehicle={vehicle} fuel={fuel} />
@@ -314,6 +308,29 @@ export const VehiclePage: FC<{
               </select>
             </label>
             <button type="submit" class="primary">simpan</button>
+          </form>
+        </details>
+      </section>
+
+      <section class="panel danger-zone">
+        <details>
+          <summary class="danger-summary">pengaturan kendaraan</summary>
+          <form
+            method="post"
+            action={`/vehicles/${vehicle.id}/status`}
+            onsubmit={`return confirm('${vehicle.status === 'active'
+              ? `Tandai ${vehicle.name} sebagai TERJUAL? Kendaraan tidak akan muncul di pengingat.`
+              : `Aktifkan kembali ${vehicle.name}?`}')`}
+          >
+            <input type="hidden" name="status" value={vehicle.status === 'active' ? 'sold' : 'active'} />
+            <p class="muted danger-note">
+              {vehicle.status === 'active'
+                ? 'Menandai terjual menyembunyikan kendaraan dari pengingat. Riwayat tetap tersimpan.'
+                : 'Kendaraan ini berstatus terjual.'}
+            </p>
+            <button type="submit" class="ghost small danger">
+              {vehicle.status === 'active' ? 'tandai terjual' : 'aktifkan lagi'}
+            </button>
           </form>
         </details>
       </section>

@@ -263,6 +263,16 @@ button.ghost.danger:hover { color: var(--red); border-color: var(--red); }
 
 .inline-form { display: inline-block; margin-top: 10px; }
 
+/* ---- danger zone ---- */
+
+.danger-zone { border-style: dashed; opacity: 0.85; }
+.danger-summary {
+  cursor: pointer; color: var(--ink-dim); font-size: 12px;
+  letter-spacing: 0.18em; text-transform: uppercase;
+}
+.danger-summary:hover { color: var(--red); }
+.danger-note { font-size: 14px; margin: 10px 0; }
+
 /* ---- login ---- */
 
 .login-body {
