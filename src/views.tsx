@@ -72,6 +72,66 @@ const Odometer: FC<{ km: number }> = ({ km }) => (
   </span>
 )
 
+// Inline Lucide paths — emoji render inconsistently across platforms and
+// can't follow the theme; SVG with currentColor does.
+const ICONS = {
+  alert: (
+    <>
+      <path d="M21.73 18l-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+      <path d="M12 9v4" />
+      <path d="M12 17h.01" />
+    </>
+  ),
+  calendar: (
+    <>
+      <path d="M8 2v4" />
+      <path d="M16 2v4" />
+      <rect width="18" height="18" x="3" y="4" rx="2" />
+      <path d="M3 10h18" />
+    </>
+  ),
+  wrench: (
+    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+  ),
+  fuel: (
+    <>
+      <path d="M3 22h12" />
+      <path d="M4 9h10" />
+      <path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18" />
+      <path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 4 0V9.83a2 2 0 0 0-.59-1.42L18 5" />
+    </>
+  ),
+  paperclip: (
+    <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+  ),
+  factory: (
+    <>
+      <path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z" />
+      <path d="M17 18h1" />
+      <path d="M12 18h1" />
+      <path d="M7 18h1" />
+    </>
+  ),
+  car: (
+    <>
+      <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2" />
+      <circle cx="7" cy="17" r="2" />
+      <path d="M9 17h6" />
+      <circle cx="17" cy="17" r="2" />
+    </>
+  ),
+  check: <path d="M20 6 9 17l-5-5" />,
+} as const
+
+const Icon: FC<{ name: keyof typeof ICONS }> = ({ name }) => (
+  <svg
+    class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+  >
+    {ICONS[name]}
+  </svg>
+)
+
 const Head: FC<{ title: string }> = ({ title }) => (
   <head>
     <meta charset="utf-8" />
@@ -80,7 +140,7 @@ const Head: FC<{ title: string }> = ({ title }) => (
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;600&display=swap"
     />
     <link rel="stylesheet" href="/style.css" />
   </head>
@@ -122,7 +182,7 @@ export const LoginPage: FC<{ error?: string }> = ({ error }) => (
 
 export const DueList: FC<{ due: DueRow[] }> = ({ due }) => (
   <section class="panel">
-    <h2 class="panel-title">⚠ Jatuh Tempo</h2>
+    <h2 class="panel-title"><Icon name="alert" />Jatuh Tempo</h2>
     {due.length === 0 ? (
       <p class="muted">Tidak ada checkpoint yang jatuh tempo.</p>
     ) : (
@@ -139,7 +199,7 @@ export const DueList: FC<{ due: DueRow[] }> = ({ due }) => (
                   {d.due_km !== null ? `${d.due_km.toLocaleString('id-ID')} km` : ''}
                 </span>
               </div>
-              <button type="submit" class="ghost small" title="tandai selesai">✓ beres</button>
+              <button type="submit" class="ghost small" title="tandai selesai"><Icon name="check" />beres</button>
             </form>
           </li>
         ))}
@@ -149,7 +209,9 @@ export const DueList: FC<{ due: DueRow[] }> = ({ due }) => (
 )
 
 const DoerChip: FC<{ doer: Doer }> = ({ doer }) => (
-  <span class={`chip ${doer}`}>{doer === 'diy' ? '🔧 DIY' : '🏭 bengkel'}</span>
+  <span class={`chip ${doer}`}>
+    {doer === 'diy' ? <><Icon name="wrench" />DIY</> : <><Icon name="factory" />bengkel</>}
+  </span>
 )
 
 const planWhen = (d: DuePlanItem): string => {
@@ -165,9 +227,10 @@ const StaleWarn: FC<{ stale: StaleOdo[] }> = ({ stale }) => (
   <>
     {stale.map((s) => (
       <p class="stale-warn">
-        ⚠ {s.vehicle_name}: {s.newest_reading_date === null
+        <Icon name="alert" />
+        <span>{s.vehicle_name}: {s.newest_reading_date === null
           ? 'odometer belum pernah dicatat'
-          : `odometer terakhir dicatat ${tanggal(s.newest_reading_date)}`} — catat pembacaan baru agar pengingat km akurat.
+          : `odometer terakhir dicatat ${tanggal(s.newest_reading_date)}`} — catat pembacaan baru agar pengingat km akurat.</span>
       </p>
     ))}
   </>
@@ -177,16 +240,16 @@ const StaleWarn: FC<{ stale: StaleOdo[] }> = ({ stale }) => (
 // (spec shown), the bengkel group as a dictatable work order.
 export const PlanDueList: FC<{ duePlan: DuePlanItem[]; stale: StaleOdo[] }> = ({ duePlan, stale }) => {
   if (duePlan.length === 0 && stale.length === 0) return null
-  const groups: { doer: Doer; title: string; items: DuePlanItem[] }[] = [
-    { doer: 'diy', title: '🔧 Kerjakan sendiri', items: duePlan.filter((d) => d.doer === 'diy') },
-    { doer: 'bengkel', title: '🏭 Bawa ke bengkel', items: duePlan.filter((d) => d.doer === 'bengkel') },
+  const groups: { doer: Doer; icon: 'wrench' | 'factory'; title: string; items: DuePlanItem[] }[] = [
+    { doer: 'diy', icon: 'wrench', title: 'Kerjakan sendiri', items: duePlan.filter((d) => d.doer === 'diy') },
+    { doer: 'bengkel', icon: 'factory', title: 'Bawa ke bengkel', items: duePlan.filter((d) => d.doer === 'bengkel') },
   ]
   return (
     <section class="panel">
-      <h2 class="panel-title">🗓 Tugas Perawatan</h2>
+      <h2 class="panel-title"><Icon name="calendar" />Tugas Perawatan</h2>
       {groups.filter((g) => g.items.length > 0).map((g) => (
         <>
-          <h3 class="plan-group-title">{g.title}</h3>
+          <h3 class="plan-group-title"><Icon name={g.icon} />{g.title}</h3>
           <ul class="due-list">
             {g.items.map((d) => (
               <li class={d.status === 'overdue' ? 'due overdue' : 'due'}>
@@ -216,7 +279,7 @@ export const Dashboard: FC<{
     <PlanDueList duePlan={duePlan} stale={stale} />
     <DueList due={due} />
     <section class="panel">
-      <h2 class="panel-title">Kendaraan</h2>
+      <h2 class="panel-title"><Icon name="car" />Kendaraan</h2>
       <div class="vehicle-grid">
         {vehicles.map((v) => (
           <a href={`/vehicles/${v.id}`} class={`vehicle-card ${v.status}`}>
@@ -234,7 +297,7 @@ export const Dashboard: FC<{
       <details class="adder">
         <summary>+ tambah kendaraan</summary>
         <form method="post" action="/vehicles" class="stack">
-          <input name="name" placeholder="nama kendaraan" required />
+          <label>nama kendaraan <input name="name" placeholder="mis. NMAX 2022" required /></label>
           <button type="submit" class="primary">simpan</button>
         </form>
       </details>
@@ -244,7 +307,7 @@ export const Dashboard: FC<{
 
 const FuelSection: FC<{ vehicle: VehicleRow; fuel: FuelSummary }> = ({ vehicle, fuel }) => (
   <section class="panel">
-    <h2 class="panel-title">⛽ BBM & Odometer</h2>
+    <h2 class="panel-title"><Icon name="fuel" />BBM & Odometer</h2>
     {fuel.avg_km_per_liter !== null ? (
       <dl class="vehicle-stats">
         <div><dt>rata-rata</dt><dd>{fuel.avg_km_per_liter.toFixed(1)} km/l</dd></div>
@@ -255,27 +318,31 @@ const FuelSection: FC<{ vehicle: VehicleRow; fuel: FuelSummary }> = ({ vehicle, 
     {fuel.entries.length === 0 ? (
       <p class="muted">Belum ada catatan. Isi km saat mengisi bensin untuk hitung konsumsi (tangki penuh).</p>
     ) : (
-      <table class="items">
-        <thead>
-          <tr><th>tanggal</th><th class="num">km</th><th class="num">liter</th><th class="num">harga</th><th class="num">km/l</th><th /></tr>
-        </thead>
-        <tbody>
-          {fuel.entries.slice(0, 15).map((e) => (
-            <tr>
-              <td class="date">{tanggal(e.date)}</td>
-              <td class="num mono">{e.odometer_km.toLocaleString('id-ID')}</td>
-              <td class="num mono">{e.liters !== null ? e.liters.toLocaleString('id-ID') : '—'}</td>
-              <td class="num mono">{e.total !== null ? e.total.toLocaleString('id-ID') : '—'}</td>
-              <td class="num mono">{e.km_per_liter !== null ? e.km_per_liter.toFixed(1) : '—'}</td>
-              <td class="attach-cell">
-                {e.attachments.map((a) => (
-                  <a href={`/attachments/${a.id}`} target="_blank" rel="noopener" title={a.filename}>📎</a>
-                ))}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div class="table-scroll">
+        <table class="items">
+          <thead>
+            <tr><th>tanggal</th><th class="num">km</th><th class="num">liter</th><th class="num">harga</th><th class="num">km/l</th><th /></tr>
+          </thead>
+          <tbody>
+            {fuel.entries.slice(0, 15).map((e) => (
+              <tr>
+                <td class="date">{tanggal(e.date)}</td>
+                <td class="num mono">{e.odometer_km.toLocaleString('id-ID')}</td>
+                <td class="num mono">{e.liters !== null ? e.liters.toLocaleString('id-ID') : '—'}</td>
+                <td class="num mono">{e.total !== null ? e.total.toLocaleString('id-ID') : '—'}</td>
+                <td class="num mono">{e.km_per_liter !== null ? e.km_per_liter.toFixed(1) : '—'}</td>
+                <td class="attach-cell">
+                  {e.attachments.map((a) => (
+                    <a href={`/attachments/${a.id}`} target="_blank" rel="noopener" title={a.filename} aria-label={a.filename}>
+                      <Icon name="paperclip" />
+                    </a>
+                  ))}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     )}
     <details class="adder">
       <summary>+ catat odometer / isi bensin</summary>
@@ -288,7 +355,7 @@ const FuelSection: FC<{ vehicle: VehicleRow; fuel: FuelSummary }> = ({ vehicle, 
           <label>liter (opsional) <input type="number" name="liters" min="0" step="any" /></label>
           <label>total harga (opsional) <input type="number" name="total" min="0" /></label>
         </div>
-        <input name="note" placeholder="catatan (SPBU, jenis BBM)" />
+        <label>catatan (opsional) <input name="note" placeholder="SPBU, jenis BBM" /></label>
         <label>foto odometer / struk (opsional)
           <input type="file" name="files" accept="image/*" multiple />
         </label>
@@ -333,10 +400,11 @@ function planUsage(p: ComputedPlanItem, latestKm: number | null, today: string):
 const PlanSection: FC<{ plan: ComputedPlanItem[]; latestKm: number | null; today: string }> =
   ({ plan, latestKm, today }) => (
     <section class="panel">
-      <h2 class="panel-title">🗓 Rencana Perawatan</h2>
+      <h2 class="panel-title"><Icon name="wrench" />Rencana Perawatan</h2>
       {plan.length === 0 ? (
         <p class="muted">Belum ada rencana perawatan. Tambahkan via <code>POST /api/vehicles/:id/plan-items</code>.</p>
       ) : (
+        <div class="table-scroll">
         <table class="items plan">
           <thead>
             <tr>
@@ -372,6 +440,7 @@ const PlanSection: FC<{ plan: ComputedPlanItem[]; latestKm: number | null; today
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </section>
   )
@@ -430,8 +499,8 @@ export const VehiclePage: FC<{
             <label>tanggal <input type="date" name="date" required /></label>
             <label>odometer km (opsional) <input type="number" name="odometer_km" min="0" /></label>
           </div>
-          <input name="vendor" placeholder="bengkel / toko / samsat (opsional)" />
-          <input name="label" placeholder="label grup, mis. Servis berkala (opsional)" />
+          <label>bengkel / toko (opsional) <input name="vendor" placeholder="mis. Mekar Motor, Samsat" /></label>
+          <label>label grup (opsional) <input name="label" placeholder="mis. Servis berkala" /></label>
           <button type="submit" class="primary">buka kunjungan</button>
         </form>
       </details>
@@ -463,6 +532,7 @@ export const VehiclePage: FC<{
 )
 
 const ItemTable: FC<{ items: ItemRow[] }> = ({ items }) => (
+  <div class="table-scroll">
   <table class="items">
     <thead>
       <tr>
@@ -495,7 +565,7 @@ const ItemTable: FC<{ items: ItemRow[] }> = ({ items }) => (
             ) : null}
             {(it.due_date || it.due_km !== null) && !it.checkpoint_done ? (
               <form method="post" action={`/items/${it.id}/done`} class="inline-form">
-                <button type="submit" class="ghost small">✓</button>
+                <button type="submit" class="ghost small" title="tandai selesai" aria-label="tandai selesai"><Icon name="check" /></button>
               </form>
             ) : null}
           </td>
@@ -503,6 +573,7 @@ const ItemTable: FC<{ items: ItemRow[] }> = ({ items }) => (
       ))}
     </tbody>
   </table>
+  </div>
 )
 
 export const VisitPage: FC<{
@@ -533,7 +604,7 @@ export const VisitPage: FC<{
       <details class="adder" open={items.length === 0}>
         <summary>+ tambah item</summary>
         <form method="post" action={`/visits/${visit.id}/items`} class="stack">
-          <input name="description" placeholder="parts / jasa" required />
+          <label>parts / jasa <input name="description" placeholder="mis. Oli mesin Yamalube" required /></label>
           <div class="row2">
             <label>harga satuan <input type="number" name="unit_price" min="0" required /></label>
             <label>jumlah <input type="number" name="qty" min="0" step="any" required /></label>
@@ -551,7 +622,7 @@ export const VisitPage: FC<{
               <label>tempo tanggal <input type="date" name="due_date" /></label>
               <label>tempo km <input type="number" name="due_km" min="0" /></label>
             </div>
-            <input name="checkpoint_note" placeholder="catatan checkpoint" />
+            <label>catatan <input name="checkpoint_note" placeholder="mis. ganti tiap 2000 km" /></label>
           </fieldset>
           <button type="submit" class="primary">simpan item</button>
         </form>
@@ -559,7 +630,7 @@ export const VisitPage: FC<{
     </section>
 
     <section class="panel">
-      <h2 class="panel-title">📎 Struk & Dokumen</h2>
+      <h2 class="panel-title"><Icon name="paperclip" />Struk & Dokumen</h2>
       {attachments.length === 0 ? <p class="muted">Belum ada lampiran.</p> : (
         <ul class="attachment-list">
           {attachments.map((a) => (
