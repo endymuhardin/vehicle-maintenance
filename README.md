@@ -74,6 +74,10 @@ wrangler secret put TELEGRAM_CHAT_ID    # your chat id with the bot
 npm run deploy
 ```
 
+Deploys are automated via Workers Builds: every push to `main` runs
+`npx wrangler deploy`; non-production branches upload preview versions.
+`npm run deploy` remains for manual deploys.
+
 Local development: put the same five values in `.dev.vars` (gitignored), then
 
 ```sh
