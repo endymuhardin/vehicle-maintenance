@@ -227,6 +227,22 @@
         }
       }
     },
+    "/api/odometer/{id}": {
+      "delete": {
+        "tags": ["fuel"],
+        "summary": "Delete an odometer/fuel log entry and its attachments",
+        "description": "Removes the entry, its attachment rows, and the R2 objects.",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": {
+            "description": "Deleted",
+            "content": { "application/json": { "example": { "id": 3, "deleted": true, "attachments_deleted": 2 } } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
     "/api/odometer/{id}/attachments": {
       "post": {
         "tags": ["attachments", "fuel"],
@@ -301,6 +317,21 @@
             "content": { "application/json": { "example": { "id": 3, "vehicle_id": 4, "date": "2026-06-04", "odometer_km": 48210, "liters": 8.5, "total": 110500, "note": "Pertamax", "km_per_liter": 44.1, "avg_km_per_liter": 45.2 } } }
           },
           "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/items/{id}": {
+      "delete": {
+        "tags": ["visits"],
+        "summary": "Delete a line item",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": {
+            "description": "Deleted",
+            "content": { "application/json": { "example": { "id": 195, "deleted": true } } }
+          },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "404": { "$ref": "#/components/responses/NotFound" }
         }

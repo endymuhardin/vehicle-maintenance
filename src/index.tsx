@@ -456,11 +456,30 @@ api.post('/vehicles/:id/odometer', async (c) => {
   return c.json({ ...entry, avg_km_per_liter: log.avg_km_per_liter }, 201)
 })
 
+api.delete('/odometer/:id', async (c) => {
+  const id = needInt(c.req.param('id'), 'id')
+  const log = await c.env.DB.prepare('SELECT id FROM odometer_logs WHERE id = ?').bind(id).first()
+  if (!log) throw new HTTPException(404, { message: `odometer log ${id} not found` })
+  const atts = (await c.env.DB.prepare('SELECT id, r2_key FROM attachments WHERE odometer_log_id = ?')
+    .bind(id).all<{ id: number; r2_key: string }>()).results
+  for (const a of atts) await c.env.RECEIPTS.delete(a.r2_key)
+  await c.env.DB.prepare('DELETE FROM attachments WHERE odometer_log_id = ?').bind(id).run()
+  await c.env.DB.prepare('DELETE FROM odometer_logs WHERE id = ?').bind(id).run()
+  return c.json({ id, deleted: true, attachments_deleted: atts.length })
+})
+
 api.post('/items/:id/done', async (c) => {
   const id = needInt(c.req.param('id'), 'id')
   const result = await c.env.DB.prepare('UPDATE line_items SET checkpoint_done = 1 WHERE id = ?').bind(id).run()
   if (result.meta.changes === 0) throw new HTTPException(404, { message: `item ${id} not found` })
   return c.json({ id, checkpoint_done: 1 })
+})
+
+api.delete('/items/:id', async (c) => {
+  const id = needInt(c.req.param('id'), 'id')
+  const result = await c.env.DB.prepare('DELETE FROM line_items WHERE id = ?').bind(id).run()
+  if (result.meta.changes === 0) throw new HTTPException(404, { message: `item ${id} not found` })
+  return c.json({ id, deleted: true })
 })
 
 // Recurring maintenance plan (service-book schedule). Creation via API;
@@ -641,19 +660,6 @@ app.get('/attachments/:id', async (c) => {
   return serveAttachment(c.env, needInt(c.req.param('id'), 'id'))
 })
 
-app.post('/attachments/:id/delete', async (c) => {
-  const id = needInt(c.req.param('id'), 'id')
-  const meta = await c.env.DB.prepare(`
-    SELECT a.visit_id, a.odometer_log_id, a.r2_key, o.vehicle_id AS log_vehicle_id
-    FROM attachments a LEFT JOIN odometer_logs o ON o.id = a.odometer_log_id
-    WHERE a.id = ?
-  `).bind(id).first<{ visit_id: number | null; odometer_log_id: number | null; r2_key: string; log_vehicle_id: number | null }>()
-  if (!meta) throw new HTTPException(404, { message: `attachment ${id} not found` })
-  await c.env.RECEIPTS.delete(meta.r2_key)
-  await c.env.DB.prepare('DELETE FROM attachments WHERE id = ?').bind(id).run()
-  return c.redirect(meta.visit_id !== null ? `/visits/${meta.visit_id}` : `/vehicles/${meta.log_vehicle_id}`)
-})
-
 app.post('/vehicles/:id/odometer', async (c) => {
   const vehicleId = needInt(c.req.param('id'), 'id')
   await getVehicle(c.env, vehicleId)
@@ -679,15 +685,6 @@ app.post('/vehicles/:id/odometer', async (c) => {
   return c.redirect(`/vehicles/${vehicleId}`)
 })
 
-app.post('/odometer/:id/delete', async (c) => {
-  const id = needInt(c.req.param('id'), 'id')
-  const row = await c.env.DB.prepare('SELECT vehicle_id FROM odometer_logs WHERE id = ?')
-    .bind(id).first<{ vehicle_id: number }>()
-  if (!row) throw new HTTPException(404, { message: `odometer log ${id} not found` })
-  await c.env.DB.prepare('DELETE FROM odometer_logs WHERE id = ?').bind(id).run()
-  return c.redirect(`/vehicles/${row.vehicle_id}`)
-})
-
 app.post('/items/:id/done', async (c) => {
   const id = needInt(c.req.param('id'), 'id')
   const item = await c.env.DB.prepare('SELECT visit_id FROM line_items WHERE id = ?')
@@ -696,15 +693,6 @@ app.post('/items/:id/done', async (c) => {
   await c.env.DB.prepare('UPDATE line_items SET checkpoint_done = 1 WHERE id = ?').bind(id).run()
   const back = c.req.header('Referer')
   return c.redirect(back ?? `/visits/${item.visit_id}`)
-})
-
-app.post('/items/:id/delete', async (c) => {
-  const id = needInt(c.req.param('id'), 'id')
-  const item = await c.env.DB.prepare('SELECT visit_id FROM line_items WHERE id = ?')
-    .bind(id).first<{ visit_id: number }>()
-  if (!item) throw new HTTPException(404, { message: `item ${id} not found` })
-  await c.env.DB.prepare('DELETE FROM line_items WHERE id = ?').bind(id).run()
-  return c.redirect(`/visits/${item.visit_id}`)
 })
 
 // ---------- error handling ----------

@@ -257,7 +257,7 @@ const FuelSection: FC<{ vehicle: VehicleRow; fuel: FuelSummary }> = ({ vehicle, 
     ) : (
       <table class="items">
         <thead>
-          <tr><th>tanggal</th><th class="num">km</th><th class="num">liter</th><th class="num">harga</th><th class="num">km/l</th><th /><th /></tr>
+          <tr><th>tanggal</th><th class="num">km</th><th class="num">liter</th><th class="num">harga</th><th class="num">km/l</th><th /></tr>
         </thead>
         <tbody>
           {fuel.entries.slice(0, 15).map((e) => (
@@ -271,11 +271,6 @@ const FuelSection: FC<{ vehicle: VehicleRow; fuel: FuelSummary }> = ({ vehicle, 
                 {e.attachments.map((a) => (
                   <a href={`/attachments/${a.id}`} target="_blank" rel="noopener" title={a.filename}>📎</a>
                 ))}
-              </td>
-              <td class="rowact">
-                <form method="post" action={`/odometer/${e.id}/delete`} onsubmit="return confirm('Hapus catatan ini?')">
-                  <button type="submit" class="ghost small danger" title="hapus">×</button>
-                </form>
               </td>
             </tr>
           ))}
@@ -475,7 +470,6 @@ const ItemTable: FC<{ items: ItemRow[] }> = ({ items }) => (
         <th class="num">harga × jml</th>
         <th class="num">total</th>
         <th>checkpoint</th>
-        <th />
       </tr>
     </thead>
     <tbody>
@@ -504,15 +498,6 @@ const ItemTable: FC<{ items: ItemRow[] }> = ({ items }) => (
                 <button type="submit" class="ghost small">✓</button>
               </form>
             ) : null}
-          </td>
-          <td class="rowact">
-            <form
-              method="post"
-              action={`/items/${it.id}/delete`}
-              onsubmit="return confirm('Hapus item ini?')"
-            >
-              <button type="submit" class="ghost small danger" title="hapus">×</button>
-            </form>
           </td>
         </tr>
       ))}
@@ -581,10 +566,6 @@ export const VisitPage: FC<{
             <li>
               <a href={`/attachments/${a.id}`} target="_blank" rel="noopener">{a.filename}</a>
               <span class="muted"> {(a.size / 1024).toFixed(0)} KB</span>
-              <form method="post" action={`/attachments/${a.id}/delete`} class="inline-form"
-                onsubmit="return confirm('Hapus lampiran ini?')">
-                <button type="submit" class="ghost small danger" title="hapus">×</button>
-              </form>
             </li>
           ))}
         </ul>

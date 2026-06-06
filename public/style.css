@@ -241,7 +241,6 @@ input[type='file'] {
 .items .desc { white-space: pre-line; }
 .items tr.umbrella .desc { font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
 .items .checkpoint { font-size: 13px; }
-.items .rowact { width: 28px; }
 
 /* ---- forms ---- */
 

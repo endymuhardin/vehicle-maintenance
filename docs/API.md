@@ -128,6 +128,8 @@ reminders fresh.
 | DELETE | `/api/attachments/:id` | remove an attachment (R2 object + metadata) |
 | GET | `/api/vehicles/:id/odometer` | fuel log + km/l + averages |
 | POST | `/api/vehicles/:id/odometer` | `{date, odometer_km, liters?, total?, note?}` |
+| DELETE | `/api/odometer/:id` | remove a log entry + its attachments (rows and R2 objects) |
+| DELETE | `/api/items/:id` | remove a line item |
 | GET | `/api/vehicles/:id/plan` | maintenance plan + computed last-done/next-due/status |
 | POST | `/api/vehicles/:id/plan-items` | add recurring plan items: `{plan_items: [...]}` |
 | POST | `/api/items/:id/done` | mark one-shot checkpoint handled |
