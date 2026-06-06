@@ -1,6 +1,7 @@
 DROP TABLE IF EXISTS attachments;
 DROP TABLE IF EXISTS odometer_logs;
 DROP TABLE IF EXISTS line_items;
+DROP TABLE IF EXISTS plan_items;
 DROP TABLE IF EXISTS visits;
 DROP TABLE IF EXISTS sessions;
 DROP TABLE IF EXISTS vehicles;
@@ -21,6 +22,24 @@ CREATE TABLE visits (
   label TEXT                   -- optional grouping, e.g. 'Perawatan ke-1'
 );
 
+-- Recurring service schedule (bengkel-resmi service book): one row per
+-- item × action × interval. Last-done derives from line_items linked via
+-- plan_item_id (falling back to the explicit baseline_* only when no linked
+-- history exists). Both intervals NULL = pure consumable tracker ('pantau'):
+-- shows installed part + age, never becomes due.
+CREATE TABLE plan_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  vehicle_id INTEGER NOT NULL REFERENCES vehicles(id),
+  item TEXT NOT NULL,          -- 'Busi', 'Oli mesin', 'Ban depan'
+  action TEXT NOT NULL CHECK (action IN ('periksa', 'ganti', 'setel', 'bersihkan', 'lumasi')),
+  interval_km INTEGER,         -- either/both/none, whichever first
+  interval_months INTEGER,
+  doer TEXT NOT NULL CHECK (doer IN ('diy', 'bengkel')),
+  spec TEXT,                   -- part no, capacity, torque, brand
+  baseline_date TEXT,          -- ISO, explicit last-done when no linked history
+  baseline_km INTEGER
+);
+
 -- A cost line: part or service. Prices in full rupiah.
 CREATE TABLE line_items (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,7 +52,8 @@ CREATE TABLE line_items (
   checkpoint_note TEXT,        -- free-text service note
   due_date TEXT,               -- ISO yyyy-mm-dd, structured reminder
   due_km INTEGER,              -- structured reminder against vehicle odometer
-  checkpoint_done INTEGER NOT NULL CHECK (checkpoint_done IN (0, 1))
+  checkpoint_done INTEGER NOT NULL CHECK (checkpoint_done IN (0, 1)),
+  plan_item_id INTEGER REFERENCES plan_items(id)  -- set when this line completes a plan task
 );
 
 -- Odometer readings, typically logged at refueling. liters/total present =
@@ -65,7 +85,9 @@ CREATE TABLE attachments (
 );
 
 CREATE INDEX idx_visits_vehicle ON visits(vehicle_id, date);
+CREATE INDEX idx_plan_items_vehicle ON plan_items(vehicle_id);
 CREATE INDEX idx_line_items_visit ON line_items(visit_id);
+CREATE INDEX idx_line_items_plan ON line_items(plan_item_id);
 CREATE INDEX idx_line_items_due ON line_items(checkpoint_done, due_date, due_km);
 CREATE INDEX idx_odometer_logs_vehicle ON odometer_logs(vehicle_id, odometer_km);
 CREATE INDEX idx_attachments_visit ON attachments(visit_id);

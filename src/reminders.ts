@@ -1,4 +1,5 @@
 import { Env, requireEnv, requireIntEnv } from './env'
+import { computeDuePlanItems, findStaleOdometers, DuePlanItem, StaleOdo } from './plan'
 
 export type DueItem = {
   id: number
@@ -62,16 +63,47 @@ async function sendTelegram(env: Env, text: string): Promise<void> {
   }
 }
 
+const km = (n: number) => `${n.toLocaleString('id-ID')} km`
+
+function checkpointLine(d: DueItem): string {
+  const parts: string[] = []
+  if (d.due_date) parts.push(`jatuh tempo ${d.due_date}`)
+  if (d.due_km !== null) parts.push(`di ${km(d.due_km)} (sekarang ${d.latest_km !== null ? km(d.latest_km) : '?'})`)
+  const flag = d.overdue ? '🔴' : '🟡'
+  return `${flag} <b>${d.vehicle_name}</b>: ${d.description} — ${parts.join(', ')}`
+}
+
+function planLine(d: DuePlanItem): string {
+  const parts: string[] = []
+  if (d.next_due_date) parts.push(`tempo ${d.next_due_date}`)
+  if (d.next_due_km !== null) {
+    parts.push(`di ${km(d.next_due_km)}${d.latest_km !== null ? ` (sekarang ${km(d.latest_km)})` : ''}`)
+  }
+  const flag = d.status === 'overdue' ? '🔴' : '🟡'
+  const spec = d.spec ? ` · ${d.spec}` : ''
+  return `${flag} <b>${d.vehicle_name}</b>: ${d.action} ${d.item} — ${parts.join(', ')}${spec}`
+}
+
+function staleLine(s: StaleOdo): string {
+  return s.newest_reading_date === null
+    ? `• ${s.vehicle_name}: odometer belum pernah dicatat`
+    : `• ${s.vehicle_name}: odometer terakhir dicatat ${s.newest_reading_date}`
+}
+
 export async function runReminderCheck(env: Env, now: Date): Promise<number> {
   const due = await findDueItems(env, now)
-  if (due.length === 0) return 0
-  const lines = due.map((d) => {
-    const parts: string[] = []
-    if (d.due_date) parts.push(`jatuh tempo ${d.due_date}`)
-    if (d.due_km !== null) parts.push(`di ${d.due_km.toLocaleString('id-ID')} km (sekarang ${d.latest_km?.toLocaleString('id-ID')} km)`)
-    const flag = d.overdue ? '🔴' : '🟡'
-    return `${flag} <b>${d.vehicle_name}</b>: ${d.description} — ${parts.join(', ')}`
-  })
-  await sendTelegram(env, `🔧 <b>Pengingat perawatan kendaraan</b>\n\n${lines.join('\n')}`)
-  return due.length
+  const duePlan = await computeDuePlanItems(env, now)
+  const stale = await findStaleOdometers(env, now)
+  if (due.length === 0 && duePlan.length === 0 && stale.length === 0) return 0
+
+  const diy = duePlan.filter((d) => d.doer === 'diy')
+  const bengkel = duePlan.filter((d) => d.doer === 'bengkel')
+  const sections: string[] = []
+  if (due.length > 0) sections.push(`⏰ <b>Checkpoint</b>\n${due.map(checkpointLine).join('\n')}`)
+  if (diy.length > 0) sections.push(`🔧 <b>DIY</b>\n${diy.map(planLine).join('\n')}`)
+  if (bengkel.length > 0) sections.push(`🏭 <b>Bengkel</b>\n${bengkel.map(planLine).join('\n')}`)
+  if (stale.length > 0) sections.push(`⚠ <b>Odometer</b>\n${stale.map(staleLine).join('\n')}`)
+
+  await sendTelegram(env, `🔧 <b>Pengingat perawatan kendaraan</b>\n\n${sections.join('\n\n')}`)
+  return due.length + duePlan.length
 }

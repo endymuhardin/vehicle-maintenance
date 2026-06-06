@@ -9,6 +9,7 @@ export type Env = {
   TELEGRAM_CHAT_ID: string
   REMINDER_DAYS_AHEAD: string
   REMINDER_KM_AHEAD: string
+  REMINDER_ODO_STALE_DAYS: string
 }
 
 // No fallbacks: a missing binding/secret is a deployment error and must surface loudly.

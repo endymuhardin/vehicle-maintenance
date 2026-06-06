@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Garasi Log API",
-    "version": "2.0.0",
-    "description": "Vehicle maintenance record API. All endpoints require `Authorization: Bearer <API_TOKEN>`.\n\n## Model\n\n`vehicles → visits → line_items`, plus `odometer_logs` (refuels/readings) and `attachments` (receipt photos in R2). **One receipt = one visit.** Visits can carry an optional `label` to group related visits (e.g. one maintenance campaign across several shops).\n\n## Conventions\n\n- Money: full rupiah, integer (`108000`, never `108` or `108.000`)\n- Dates: ISO `yyyy-mm-dd` strings\n- `category` is required on every item: `rutin` | `aksesoris` | `administratif`\n- No silent defaults: missing required fields return `400 {\"error\": \"missing field: <name>\"}`. Exception: `total` is computed as `round(unit_price × qty)` when omitted\n- `due_km` is an **absolute odometer value**, not an interval: \"next oil change in 3000 km\" at odometer 32000 → `due_km: 35000`\n\n## Receipt entry workflow\n\nWhen entering a workshop receipt (photo or text):\n\n1. `GET /api/vehicles` to resolve the vehicle id; ask if the receipt doesn't clearly match one vehicle\n2. Create one visit per receipt: `POST /api/vehicles/{id}/visits` with `date`, `vendor`, `odometer_km` (when known), optional `label` for grouping, and `items`\n3. Normalize prices to full-rupiah integers (\"60rb\" → 60000, \"1,2jt\" → 1200000)\n4. If a next-service interval is mentioned, set `due_date` and/or `due_km` (absolute odometer) on that item\n5. Upload the receipt photo(s): `POST /api/visits/{id}/attachments` (multipart, field `files`)\n6. Confirm the parsed items with the user before posting\n\n## Refuel entry workflow\n\nWhen given odometer + fuel receipt photos: read the odometer km from the dashboard photo and date/liters/total from the receipt, then `POST /api/vehicles/{id}/odometer`, followed by `POST /api/odometer/{id}/attachments` to archive the photos. Full-tank refuels make km/l accurate; log a plain odometer reading (no liters/total) anytime to keep reminders fresh.\n\n## Reminders\n\nA checkpoint becomes *due* when `due_date` is within `REMINDER_DAYS_AHEAD` (14) days, or `due_km` is within `REMINDER_KM_AHEAD` (500) km of the vehicle's current odometer (max over visit odometers and the odometer/fuel log). Sold vehicles are excluded. Due checkpoints are sent daily at 05:00 WIB via Telegram.",
+    "version": "3.0.0",
+    "description": "Vehicle maintenance record API. All endpoints require `Authorization: Bearer <API_TOKEN>`.\n\n## Model\n\n`vehicles → visits → line_items`, plus `odometer_logs` (refuels/readings), `attachments` (receipt photos in R2), and `plan_items` (recurring service schedule). **One receipt = one visit.** Visits can carry an optional `label` to group related visits (e.g. one maintenance campaign across several shops).\n\n## Conventions\n\n- Money: full rupiah, integer (`108000`, never `108` or `108.000`)\n- Dates: ISO `yyyy-mm-dd` strings\n- `category` is required on every item: `rutin` | `aksesoris` | `administratif`\n- No silent defaults: missing required fields return `400 {\"error\": \"missing field: <name>\"}`. Exception: `total` is computed as `round(unit_price × qty)` when omitted\n- `due_km` is an **absolute odometer value**, not an interval: \"next oil change in 3000 km\" at odometer 32000 → `due_km: 35000`\n\n## Receipt entry workflow\n\nWhen entering a workshop receipt (photo or text):\n\n1. `GET /api/vehicles` to resolve the vehicle id; ask if the receipt doesn't clearly match one vehicle\n2. Create one visit per receipt: `POST /api/vehicles/{id}/visits` with `date`, `vendor`, `odometer_km` (when known), optional `label` for grouping, and `items`\n3. Normalize prices to full-rupiah integers (\"60rb\" → 60000, \"1,2jt\" → 1200000)\n4. If an item completes a task in the vehicle's maintenance plan, set `plan_item_id` on it (find ids via `GET /api/vehicles/{id}/plan`) — this records last-done and recomputes the next due automatically. Use a one-shot `due_date`/`due_km` only for intervals NOT covered by the plan\n5. Upload the receipt photo(s): `POST /api/visits/{id}/attachments` (multipart, field `files`)\n6. Confirm the parsed items with the user before posting\n\n## Refuel entry workflow\n\nWhen given odometer + fuel receipt photos: read the odometer km from the dashboard photo and date/liters/total from the receipt, then `POST /api/vehicles/{id}/odometer`, followed by `POST /api/odometer/{id}/attachments` to archive the photos. Full-tank refuels make km/l accurate; log a plain odometer reading (no liters/total) anytime to keep reminders fresh.\n\n## Maintenance plan\n\n`plan_items` is the recurring service-book schedule: one row per item × action (`periksa|ganti|setel|bersihkan|lumasi`) × interval (`interval_km` and/or `interval_months`, whichever first), designated `doer: diy|bengkel`. Last-done derives from line items linked via `plan_item_id` (visit date + odometer); the explicit `baseline_date`/`baseline_km` applies only when no linked history exists. Rows with **no interval** are pure consumable trackers (status `pantau`): they show the installed part and its age but never become due. An interval whose baseline is unknown yields status `no-baseline` — surfaced, never silently skipped. Plan items are created via `POST /api/vehicles/{id}/plan-items`; edits/deletes happen via direct SQL (admin convention), there is no PUT/DELETE.\n\n## Reminders\n\nA checkpoint or plan item becomes *due* when its date is within `REMINDER_DAYS_AHEAD` (14) days, or its km is within `REMINDER_KM_AHEAD` (500) km of the vehicle's current odometer (max over visit odometers and the odometer/fuel log). Sold vehicles are excluded. The daily 05:00 WIB Telegram digest has sections: one-shot checkpoints, due plan tasks grouped 🔧 DIY (with `spec` as shopping list) / 🏭 bengkel (dictatable work order), and a stale-odometer warning for vehicles whose newest reading is older than `REMINDER_ODO_STALE_DAYS` (45) days.",
     "license": { "name": "MIT", "url": "https://github.com/endymuhardin/vehicle-maintenance/blob/main/LICENSE" }
   },
   "externalDocs": {
@@ -17,6 +17,7 @@
     { "name": "visits" },
     { "name": "attachments" },
     { "name": "checkpoints" },
+    { "name": "plan" },
     { "name": "fuel" }
   ],
   "paths": {
@@ -321,20 +322,94 @@
         }
       }
     },
-    "/api/due": {
+    "/api/vehicles/{id}/plan": {
       "get": {
-        "tags": ["checkpoints"],
-        "summary": "Currently due checkpoints",
-        "description": "What the daily Telegram cron would send. `overdue: true` when the date has passed or the odometer has reached `due_km`; otherwise upcoming within the reminder window.",
+        "tags": ["plan"],
+        "summary": "Maintenance plan with computed status per item",
+        "description": "Every plan item with derived `last_done_*`/`installed_desc` (from linked line items, else baseline), `next_due_*`, and `status`. Use this to find `plan_item_id`s when entering a receipt that completes plan tasks.",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
         "responses": {
           "200": {
-            "description": "Due checkpoints on active vehicles",
+            "description": "Plan items, creation order",
             "content": {
               "application/json": {
-                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/DueItem" } },
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/PlanItem" } },
                 "example": [
-                  { "id": 211, "description": "Yamalube Sport Oil", "due_date": null, "due_km": 48611, "vehicle_id": 4, "vehicle_name": "Yamaha All New Vixion 2017", "latest_km": 48210, "overdue": false }
+                  { "id": 1, "vehicle_id": 4, "item": "Oli mesin", "action": "ganti", "interval_km": 2000, "interval_months": null, "doer": "diy", "spec": "Yamalube Sport 10W-40, 1.0 L", "baseline_date": null, "baseline_km": null, "last_done_date": "2026-04-09", "last_done_km": 46611, "installed_desc": "Yamalube Sport Oil (90793-AJ910)", "next_due_date": null, "next_due_km": 48611, "status": "due", "missing": [] }
                 ]
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/vehicles/{id}/plan-items": {
+      "post": {
+        "tags": ["plan"],
+        "summary": "Add recurring plan items (service-book schedule)",
+        "description": "Batch create. Edits and deletes are intentionally not exposed — they happen via direct SQL (admin convention).",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["plan_items"],
+                "properties": { "plan_items": { "type": "array", "minItems": 1, "items": { "$ref": "#/components/schemas/PlanItemInput" } } }
+              },
+              "example": {
+                "plan_items": [
+                  { "item": "Oli mesin", "action": "ganti", "interval_km": 2000, "doer": "diy", "spec": "Yamalube Sport 10W-40, 1.0 L" },
+                  { "item": "Klep", "action": "periksa", "interval_km": 24000, "doer": "bengkel" },
+                  { "item": "Ban depan", "action": "ganti", "doer": "bengkel", "spec": "90/80-17", "baseline_date": "2026-04-11" }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Inserted",
+            "content": { "application/json": { "example": { "vehicle_id": 4, "inserted": 3 } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/due": {
+      "get": {
+        "tags": ["checkpoints", "plan"],
+        "summary": "Everything currently due (what the daily cron sends)",
+        "description": "`checkpoints`: one-shot due items. `plan`: due/overdue recurring plan tasks (group by `doer` for DIY shopping list vs bengkel work order). `stale`: active vehicles whose newest odometer reading is older than REMINDER_ODO_STALE_DAYS.",
+        "responses": {
+          "200": {
+            "description": "Due checkpoints, due plan tasks, stale odometers (active vehicles only)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "checkpoints": { "type": "array", "items": { "$ref": "#/components/schemas/DueItem" } },
+                    "plan": { "type": "array", "items": { "$ref": "#/components/schemas/DuePlanItem" } },
+                    "stale": { "type": "array", "items": { "$ref": "#/components/schemas/StaleOdometer" } }
+                  }
+                },
+                "example": {
+                  "checkpoints": [
+                    { "id": 211, "description": "Yamalube Sport Oil", "due_date": null, "due_km": 48611, "vehicle_id": 4, "vehicle_name": "Yamaha All New Vixion 2017", "latest_km": 48210, "overdue": false }
+                  ],
+                  "plan": [
+                    { "id": 1, "vehicle_id": 4, "item": "Oli mesin", "action": "ganti", "interval_km": 2000, "interval_months": null, "doer": "diy", "spec": "Yamalube Sport 10W-40, 1.0 L", "baseline_date": null, "baseline_km": null, "last_done_date": "2026-04-09", "last_done_km": 46611, "installed_desc": "Yamalube Sport Oil (90793-AJ910)", "next_due_date": null, "next_due_km": 48611, "status": "due", "missing": [], "vehicle_name": "Yamaha All New Vixion 2017", "latest_km": 48210 }
+                  ],
+                  "stale": [
+                    { "vehicle_id": 1, "vehicle_name": "Corolla Twincam 1991", "newest_reading_date": "2025-07-29" }
+                  ]
+                }
               }
             }
           },
@@ -417,7 +492,61 @@
           "category": { "type": "string", "enum": ["rutin", "aksesoris", "administratif"] },
           "checkpoint_note": { "type": "string", "description": "Free-text service note" },
           "due_date": { "type": "string", "format": "date", "description": "Reminder by date" },
-          "due_km": { "type": "integer", "description": "Reminder by ABSOLUTE odometer km, not interval" }
+          "due_km": { "type": "integer", "description": "Reminder by ABSOLUTE odometer km, not interval" },
+          "plan_item_id": { "type": "integer", "description": "Set when this item completes a maintenance-plan task; must belong to the visit's vehicle (400 otherwise)" }
+        }
+      },
+      "PlanItemInput": {
+        "type": "object",
+        "required": ["item", "action", "doer"],
+        "properties": {
+          "item": { "type": "string", "description": "e.g. Oli mesin, Busi, Ban depan" },
+          "action": { "type": "string", "enum": ["periksa", "ganti", "setel", "bersihkan", "lumasi"] },
+          "interval_km": { "type": "integer", "description": "Recur every N km. Omit both intervals for a pure consumable tracker (pantau)" },
+          "interval_months": { "type": "integer", "description": "Recur every N calendar months; with interval_km: whichever first" },
+          "doer": { "type": "string", "enum": ["diy", "bengkel"], "description": "Who is planned to do it; actual executor is the completing visit's vendor" },
+          "spec": { "type": "string", "description": "Part no, capacity, torque, brand — shown in DIY reminders as shopping info" },
+          "baseline_date": { "type": "string", "format": "date", "description": "Explicit last-done date, used only when no line item is linked yet" },
+          "baseline_km": { "type": "integer", "description": "Explicit last-done odometer, used only when no line item is linked yet" }
+        }
+      },
+      "PlanItem": {
+        "allOf": [
+          { "$ref": "#/components/schemas/PlanItemInput" },
+          {
+            "type": "object",
+            "properties": {
+              "id": { "type": "integer" },
+              "vehicle_id": { "type": "integer" },
+              "last_done_date": { "type": ["string", "null"], "format": "date", "description": "Linked completion's visit date, else baseline_date" },
+              "last_done_km": { "type": ["integer", "null"], "description": "Linked completion's visit odometer, else baseline_km" },
+              "installed_desc": { "type": ["string", "null"], "description": "Description of the latest linked line item (currently installed part)" },
+              "next_due_date": { "type": ["string", "null"], "format": "date" },
+              "next_due_km": { "type": ["integer", "null"] },
+              "status": { "type": "string", "enum": ["ok", "due", "overdue", "pantau", "no-baseline"] },
+              "missing": { "type": "array", "items": { "type": "string", "enum": ["baseline_km", "baseline_date"] }, "description": "What blocks due computation; non-empty ⇒ status no-baseline" }
+            }
+          }
+        ]
+      },
+      "DuePlanItem": {
+        "allOf": [
+          { "$ref": "#/components/schemas/PlanItem" },
+          {
+            "type": "object",
+            "properties": {
+              "vehicle_name": { "type": "string" },
+              "latest_km": { "type": ["integer", "null"] }
+            }
+          }
+        ]
+      },
+      "StaleOdometer": {
+        "type": "object",
+        "properties": {
+          "vehicle_id": { "type": "integer" },
+          "vehicle_name": { "type": "string" },
+          "newest_reading_date": { "type": ["string", "null"], "format": "date", "description": "null = never recorded" }
         }
       },
       "LineItem": {

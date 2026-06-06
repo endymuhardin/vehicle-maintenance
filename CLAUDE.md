@@ -24,6 +24,15 @@ date/liters/total from the receipt → `POST /api/vehicles/:id/odometer`, then
 upload the photos via `POST /api/odometer/:id/attachments`. Confirm parsed
 values with the user before posting.
 
+## Maintenance plan
+
+`plan_items` = recurring service schedule (item × action × interval, doer
+diy|bengkel). A receipt item that completes a plan task must carry
+`plan_item_id` (resolve via `GET /api/vehicles/:id/plan`) — that records
+last-done; one-shot `due_date`/`due_km` is only for intervals outside the
+plan. DIY work = a normal visit with `vendor: "DIY"`. Plan items are created
+via API, edited/deleted via direct SQL.
+
 ## Conventions
 
 - Record entry (receipts, refuels) goes through the API — never direct SQL.

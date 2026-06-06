@@ -6,11 +6,17 @@ import { createSessionToken, verifySessionToken, SESSION_TTL_SECONDS } from './a
 import { findDueItems, runReminderCheck } from './reminders'
 import { fuelLog } from './fuel'
 import {
+  computePlanForVehicle, computeDuePlanItems, findStaleOdometers,
+  PlanAction, Doer,
+} from './plan'
+import {
   Dashboard, LoginPage, VisitPage, VehiclePage,
   VehicleRow, VisitRow, ItemRow, AttachmentRow, DueRow,
 } from './views'
 
 const CATEGORIES = ['rutin', 'aksesoris', 'administratif'] as const
+const PLAN_ACTIONS = ['periksa', 'ganti', 'setel', 'bersihkan', 'lumasi'] as const
+const DOERS = ['diy', 'bengkel'] as const
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 const ATTACHMENT_TYPES = /^(image\/|application\/pdf$)/
 
@@ -93,17 +99,35 @@ type InsertItem = {
   checkpoint_note: string | null
   due_date: string | null
   due_km: number | null
+  plan_item_id: number | null
 }
 
 function insertItemStmt(env: Env, it: InsertItem) {
   return env.DB.prepare(`
     INSERT INTO line_items (visit_id, description, unit_price, qty, total, category,
-      checkpoint_note, due_date, due_km, checkpoint_done)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+      checkpoint_note, due_date, due_km, checkpoint_done, plan_item_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
   `).bind(
     it.visit_id, it.description, it.unit_price, it.qty, it.total, it.category,
-    it.checkpoint_note, it.due_date, it.due_km,
+    it.checkpoint_note, it.due_date, it.due_km, it.plan_item_id,
   )
+}
+
+// D1 does not enforce REFERENCES; this check is the real guard that a
+// plan_item_id exists and belongs to the visit's vehicle.
+async function assertPlanItemsOwned(env: Env, vehicleId: number, items: InsertItem[]): Promise<void> {
+  const ids = [...new Set(items.map((i) => i.plan_item_id).filter((v): v is number => v !== null))]
+  if (ids.length === 0) return
+  const placeholders = ids.map(() => '?').join(', ')
+  const { results } = await env.DB.prepare(
+    `SELECT id FROM plan_items WHERE id IN (${placeholders}) AND vehicle_id = ?`,
+  ).bind(...ids, vehicleId).all<{ id: number }>()
+  const found = new Set(results.map((r) => r.id))
+  for (const id of ids) {
+    if (!found.has(id)) {
+      throw new HTTPException(400, { message: `plan_item_id ${id} does not exist for vehicle ${vehicleId}` })
+    }
+  }
 }
 
 async function insertVisit(
@@ -244,7 +268,59 @@ function parseApiItem(raw: unknown, visitId: number): InsertItem {
     checkpoint_note: jsonOptString(obj, 'checkpoint_note'),
     due_date: dueDate,
     due_km: jsonOptNumber(obj, 'due_km'),
+    plan_item_id: jsonOptNumber(obj, 'plan_item_id'),
   }
+}
+
+type InsertPlanItem = {
+  vehicle_id: number
+  item: string
+  action: PlanAction
+  interval_km: number | null
+  interval_months: number | null
+  doer: Doer
+  spec: string | null
+  baseline_date: string | null
+  baseline_km: number | null
+}
+
+function parseApiPlanItem(raw: unknown, vehicleId: number): InsertPlanItem {
+  if (typeof raw !== 'object' || raw === null) {
+    throw new HTTPException(400, { message: 'plan item must be an object' })
+  }
+  const obj = raw as Record<string, unknown>
+  const action = jsonString(obj, 'action')
+  if (!PLAN_ACTIONS.includes(action as PlanAction)) {
+    throw new HTTPException(400, { message: `action must be one of: ${PLAN_ACTIONS.join(', ')}` })
+  }
+  const doer = jsonString(obj, 'doer')
+  if (!DOERS.includes(doer as Doer)) {
+    throw new HTTPException(400, { message: `doer must be one of: ${DOERS.join(', ')}` })
+  }
+  const baselineDate = jsonOptString(obj, 'baseline_date')
+  if (baselineDate !== null) needIsoDate(baselineDate, 'baseline_date')
+  return {
+    vehicle_id: vehicleId,
+    item: jsonString(obj, 'item'),
+    action: action as PlanAction,
+    interval_km: jsonOptNumber(obj, 'interval_km'),
+    interval_months: jsonOptNumber(obj, 'interval_months'),
+    doer: doer as Doer,
+    spec: jsonOptString(obj, 'spec'),
+    baseline_date: baselineDate,
+    baseline_km: jsonOptNumber(obj, 'baseline_km'),
+  }
+}
+
+function insertPlanItemStmt(env: Env, p: InsertPlanItem) {
+  return env.DB.prepare(`
+    INSERT INTO plan_items (vehicle_id, item, action, interval_km, interval_months,
+      doer, spec, baseline_date, baseline_km)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    p.vehicle_id, p.item, p.action, p.interval_km, p.interval_months,
+    p.doer, p.spec, p.baseline_date, p.baseline_km,
+  )
 }
 
 api.get('/vehicles', async (c) => {
@@ -290,13 +366,15 @@ api.post('/vehicles/:id/visits', async (c) => {
   if (!Array.isArray(body.items)) {
     throw new HTTPException(400, { message: 'items must be an array (may be empty)' })
   }
+  const parsedItems = body.items.map((raw) => parseApiItem(raw, 0))
+  await assertPlanItemsOwned(c.env, vehicleId, parsedItems)
   const visitId = await insertVisit(c.env, vehicleId, {
     date,
     odometer_km: jsonOptNumber(body, 'odometer_km'),
     vendor: jsonOptString(body, 'vendor'),
     label: jsonOptString(body, 'label'),
   })
-  const items = body.items.map((raw) => parseApiItem(raw, visitId))
+  const items = parsedItems.map((it) => ({ ...it, visit_id: visitId }))
   if (items.length > 0) {
     await c.env.DB.batch(items.map((it) => insertItemStmt(c.env, it)))
   }
@@ -305,12 +383,13 @@ api.post('/vehicles/:id/visits', async (c) => {
 
 api.post('/visits/:id/items', async (c) => {
   const visitId = needInt(c.req.param('id'), 'id')
-  await getVisit(c.env, visitId)
+  const visit = await getVisit(c.env, visitId)
   const body = await c.req.json<Record<string, unknown>>()
   if (!Array.isArray(body.items) || body.items.length === 0) {
     throw new HTTPException(400, { message: 'items must be a non-empty array' })
   }
   const items = body.items.map((raw) => parseApiItem(raw, visitId))
+  await assertPlanItemsOwned(c.env, visit.vehicle_id, items)
   await c.env.DB.batch(items.map((it) => insertItemStmt(c.env, it)))
   return c.json({ visit_id: visitId, inserted: items.length }, 201)
 })
@@ -384,8 +463,33 @@ api.post('/items/:id/done', async (c) => {
   return c.json({ id, checkpoint_done: 1 })
 })
 
+// Recurring maintenance plan (service-book schedule). Creation via API;
+// edits/deletes via direct SQL (admin convention) — no PUT/DELETE here.
+api.get('/vehicles/:id/plan', async (c) => {
+  const id = needInt(c.req.param('id'), 'id')
+  const vehicle = await getVehicle(c.env, id)
+  return c.json(await computePlanForVehicle(c.env, id, new Date(), vehicle.latest_km))
+})
+
+api.post('/vehicles/:id/plan-items', async (c) => {
+  const vehicleId = needInt(c.req.param('id'), 'id')
+  await getVehicle(c.env, vehicleId)
+  const body = await c.req.json<Record<string, unknown>>()
+  if (!Array.isArray(body.plan_items) || body.plan_items.length === 0) {
+    throw new HTTPException(400, { message: 'plan_items must be a non-empty array' })
+  }
+  const items = body.plan_items.map((raw) => parseApiPlanItem(raw, vehicleId))
+  await c.env.DB.batch(items.map((p) => insertPlanItemStmt(c.env, p)))
+  return c.json({ vehicle_id: vehicleId, inserted: items.length }, 201)
+})
+
 api.get('/due', async (c) => {
-  return c.json(await findDueItems(c.env, new Date()))
+  const now = new Date()
+  return c.json({
+    checkpoints: await findDueItems(c.env, now),
+    plan: await computeDuePlanItems(c.env, now),
+    stale: await findStaleOdometers(c.env, now),
+  })
 })
 
 app.route('/api', api)
@@ -426,8 +530,11 @@ app.get('/', async (c) => {
   const { results: vehicles } = await c.env.DB.prepare(
     `${VEHICLE_SQL} ORDER BY v.status = 'active' DESC, v.id`,
   ).all<VehicleRow>()
-  const due: DueRow[] = await findDueItems(c.env, new Date())
-  return c.html(<Dashboard vehicles={vehicles} due={due} />)
+  const now = new Date()
+  const due: DueRow[] = await findDueItems(c.env, now)
+  const duePlan = await computeDuePlanItems(c.env, now)
+  const stale = await findStaleOdometers(c.env, now)
+  return c.html(<Dashboard vehicles={vehicles} due={due} duePlan={duePlan} stale={stale} />)
 })
 
 app.post('/vehicles', async (c) => {
@@ -445,7 +552,15 @@ app.get('/vehicles/:id', async (c) => {
     `${VISIT_SQL} WHERE vi.vehicle_id = ? ORDER BY vi.date DESC, vi.id DESC`,
   ).bind(id).all<VisitRow>()
   const fuel = await fuelLog(c.env, id)
-  return c.html(<VehiclePage vehicle={vehicle} visits={visits} fuel={fuel} />)
+  const now = new Date()
+  const plan = await computePlanForVehicle(c.env, id, now, vehicle.latest_km)
+  const staleEntry = (await findStaleOdometers(c.env, now)).find((s) => s.vehicle_id === id)
+  return c.html(
+    <VehiclePage
+      vehicle={vehicle} visits={visits} fuel={fuel} plan={plan}
+      stale={staleEntry ?? null} today={now.toISOString().slice(0, 10)}
+    />,
+  )
 })
 
 app.post('/vehicles/:id/status', async (c) => {
@@ -509,6 +624,7 @@ app.post('/visits/:id/items', async (c) => {
     checkpoint_note: optionalField(form, 'checkpoint_note'),
     due_date: dueDateRaw === null ? null : needIsoDate(dueDateRaw, 'due_date'),
     due_km: dueKmRaw === null ? null : needInt(dueKmRaw, 'due_km'),
+    plan_item_id: null,
   }).run()
   return c.redirect(`/visits/${visitId}`)
 })

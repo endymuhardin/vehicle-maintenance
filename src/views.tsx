@@ -1,5 +1,6 @@
 import type { Child, FC } from 'hono/jsx'
 import type { FuelSummary } from './fuel'
+import type { ComputedPlanItem, DuePlanItem, StaleOdo, Doer } from './plan'
 
 export type VehicleRow = {
   id: number
@@ -147,8 +148,72 @@ export const DueList: FC<{ due: DueRow[] }> = ({ due }) => (
   </section>
 )
 
-export const Dashboard: FC<{ vehicles: VehicleRow[]; due: DueRow[] }> = ({ vehicles, due }) => (
+const DoerChip: FC<{ doer: Doer }> = ({ doer }) => (
+  <span class={`chip ${doer}`}>{doer === 'diy' ? '🔧 DIY' : '🏭 bengkel'}</span>
+)
+
+const planWhen = (d: DuePlanItem): string => {
+  const parts: string[] = []
+  if (d.next_due_date) parts.push(`tempo ${tanggal(d.next_due_date)}`)
+  if (d.next_due_km !== null) {
+    parts.push(`${d.next_due_km.toLocaleString('id-ID')} km${d.latest_km !== null ? ` (sekarang ${d.latest_km.toLocaleString('id-ID')})` : ''}`)
+  }
+  return parts.join(' · ')
+}
+
+const StaleWarn: FC<{ stale: StaleOdo[] }> = ({ stale }) => (
+  <>
+    {stale.map((s) => (
+      <p class="stale-warn">
+        ⚠ {s.vehicle_name}: {s.newest_reading_date === null
+          ? 'odometer belum pernah dicatat'
+          : `odometer terakhir dicatat ${tanggal(s.newest_reading_date)}`} — catat pembacaan baru agar pengingat km akurat.
+      </p>
+    ))}
+  </>
+)
+
+// Due plan tasks grouped by doer: the DIY group doubles as a shopping list
+// (spec shown), the bengkel group as a dictatable work order.
+export const PlanDueList: FC<{ duePlan: DuePlanItem[]; stale: StaleOdo[] }> = ({ duePlan, stale }) => {
+  if (duePlan.length === 0 && stale.length === 0) return null
+  const groups: { doer: Doer; title: string; items: DuePlanItem[] }[] = [
+    { doer: 'diy', title: '🔧 Kerjakan sendiri', items: duePlan.filter((d) => d.doer === 'diy') },
+    { doer: 'bengkel', title: '🏭 Bawa ke bengkel', items: duePlan.filter((d) => d.doer === 'bengkel') },
+  ]
+  return (
+    <section class="panel">
+      <h2 class="panel-title">🗓 Tugas Perawatan</h2>
+      {groups.filter((g) => g.items.length > 0).map((g) => (
+        <>
+          <h3 class="plan-group-title">{g.title}</h3>
+          <ul class="due-list">
+            {g.items.map((d) => (
+              <li class={d.status === 'overdue' ? 'due overdue' : 'due'}>
+                <div class="due-text plan-due">
+                  <a href={`/vehicles/${d.vehicle_id}`} class="due-vehicle">{d.vehicle_name}</a>
+                  <span class="due-desc">{d.action} {d.item}</span>
+                  <span class="due-when">{planWhen(d)}</span>
+                  {d.spec ? <span class="due-spec">{d.spec}</span> : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
+      ))}
+      <StaleWarn stale={stale} />
+    </section>
+  )
+}
+
+export const Dashboard: FC<{
+  vehicles: VehicleRow[]
+  due: DueRow[]
+  duePlan: DuePlanItem[]
+  stale: StaleOdo[]
+}> = ({ vehicles, due, duePlan, stale }) => (
   <Layout title="Dasbor">
+    <PlanDueList duePlan={duePlan} stale={stale} />
     <DueList due={due} />
     <section class="panel">
       <h2 class="panel-title">Kendaraan</h2>
@@ -238,11 +303,92 @@ const FuelSection: FC<{ vehicle: VehicleRow; fuel: FuelSummary }> = ({ vehicle, 
   </section>
 )
 
+const PLAN_STATUS_TEXT: Record<ComputedPlanItem['status'], string> = {
+  ok: 'ok',
+  due: 'segera',
+  overdue: 'lewat',
+  pantau: 'pantau',
+  'no-baseline': 'tanpa baseline',
+}
+
+function planInterval(p: ComputedPlanItem): string {
+  const parts: string[] = []
+  if (p.interval_km !== null) parts.push(`${p.interval_km.toLocaleString('id-ID')} km`)
+  if (p.interval_months !== null) parts.push(`${p.interval_months} bln`)
+  return parts.length > 0 ? parts.join(' / ') : '—'
+}
+
+// Consumable usage: km and/or calendar share of the interval already consumed.
+function planUsage(p: ComputedPlanItem, latestKm: number | null, today: string): string {
+  const parts: string[] = []
+  if (p.last_done_km !== null && latestKm !== null) {
+    const used = latestKm - p.last_done_km
+    const pct = p.interval_km !== null ? ` (${Math.round((used / p.interval_km) * 100)}%)` : ''
+    parts.push(`${used.toLocaleString('id-ID')} km${pct}`)
+  }
+  if (p.last_done_date !== null && (p.interval_months !== null || parts.length === 0)) {
+    const days = Math.floor((Date.parse(today) - Date.parse(p.last_done_date)) / 86400_000)
+    const pct = p.interval_months !== null
+      ? ` (${Math.round((days / (p.interval_months * 30.44)) * 100)}%)` : ''
+    parts.push(`${Math.floor(days / 30.44)} bln${pct}`)
+  }
+  return parts.length > 0 ? parts.join(' · ') : '—'
+}
+
+const PlanSection: FC<{ plan: ComputedPlanItem[]; latestKm: number | null; today: string }> =
+  ({ plan, latestKm, today }) => (
+    <section class="panel">
+      <h2 class="panel-title">🗓 Rencana Perawatan</h2>
+      {plan.length === 0 ? (
+        <p class="muted">Belum ada rencana perawatan. Tambahkan via <code>POST /api/vehicles/:id/plan-items</code>.</p>
+      ) : (
+        <table class="items plan">
+          <thead>
+            <tr>
+              <th>item</th><th>interval</th><th /><th>terakhir</th>
+              <th>pemakaian</th><th>berikutnya</th><th>status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {plan.map((p) => (
+              <tr>
+                <td class="desc">
+                  <span class="plan-action">{p.action}</span> {p.item}
+                  {p.installed_desc ? <div class="plan-spec">{p.installed_desc}</div> : null}
+                  {p.spec ? <div class="plan-spec">{p.spec}</div> : null}
+                </td>
+                <td class="mono">{planInterval(p)}</td>
+                <td><DoerChip doer={p.doer} /></td>
+                <td class="mono">
+                  {p.last_done_km !== null ? `${p.last_done_km.toLocaleString('id-ID')} km` : ''}
+                  {p.last_done_km !== null && p.last_done_date ? ' · ' : ''}
+                  {p.last_done_date ? tanggal(p.last_done_date) : ''}
+                  {p.last_done_km === null && !p.last_done_date ? '—' : ''}
+                </td>
+                <td class="mono">{planUsage(p, latestKm, today)}</td>
+                <td class="mono">
+                  {p.next_due_km !== null ? `${p.next_due_km.toLocaleString('id-ID')} km` : ''}
+                  {p.next_due_km !== null && p.next_due_date ? ' / ' : ''}
+                  {p.next_due_date ? tanggal(p.next_due_date) : ''}
+                  {p.next_due_km === null && !p.next_due_date ? '—' : ''}
+                </td>
+                <td><span class={`chip ${p.status}`}>{PLAN_STATUS_TEXT[p.status]}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  )
+
 export const VehiclePage: FC<{
   vehicle: VehicleRow
   visits: VisitRow[]
   fuel: FuelSummary
-}> = ({ vehicle, visits, fuel }) => (
+  plan: ComputedPlanItem[]
+  stale: StaleOdo | null
+  today: string
+}> = ({ vehicle, visits, fuel, plan, stale, today }) => (
   <Layout title={vehicle.name}>
     <nav class="crumbs"><a href="/">← dasbor</a></nav>
     <section class="panel">
@@ -255,7 +401,10 @@ export const VehiclePage: FC<{
         <div><dt>kunjungan</dt><dd>{vehicle.visit_count}×</dd></div>
         <div><dt>total biaya</dt><dd class="money">{rupiah(vehicle.spend)}</dd></div>
       </dl>
+      {stale !== null ? <StaleWarn stale={[stale]} /> : null}
     </section>
+
+    <PlanSection plan={plan} latestKm={vehicle.latest_km} today={today} />
 
     <FuelSection vehicle={vehicle} fuel={fuel} />
 

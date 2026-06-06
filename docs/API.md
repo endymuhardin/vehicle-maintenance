@@ -17,8 +17,9 @@ Missing/invalid token → `401 {"error": "invalid or missing API token"}`.
 ## Model
 
 ```
-vehicles → visits → line_items
+vehicles → visits → line_items (—plan_item_id→ plan_items)
          → odometer_logs (refuels + odometer readings)
+         → plan_items (recurring service schedule)
 visits   → attachments (receipt photos in R2)
 ```
 
@@ -39,10 +40,42 @@ API — never edit the database directly.
    `vendor`, `odometer_km` (ask if a service receipt doesn't show it),
    optional grouping `label`, and `items`.
 4. Normalize prices to full-rupiah integers ("60rb" → 60000, "1,2jt" → 1200000).
-5. If the receipt or user mentions a next-service interval, set `due_date`
-   and/or `due_km` on that item — `due_km` as absolute odometer, not interval.
+5. If an item completes a task in the vehicle's maintenance plan, set
+   `plan_item_id` on it (resolve via `GET /api/vehicles/:id/plan`) — this
+   records last-done and the next due recomputes automatically. Use a
+   one-shot `due_date`/`due_km` only for intervals NOT covered by the plan
+   (`due_km` as absolute odometer, not interval).
 6. Upload the receipt photo(s): `POST /api/visits/:id/attachments`.
 7. Echo the parsed items back to the user for confirmation before posting.
+
+## Maintenance plan
+
+`plan_items` is the recurring, service-book-style schedule per vehicle: one
+row per item × action (`periksa|ganti|setel|bersihkan|lumasi`) × interval
+(`interval_km` and/or `interval_months`, whichever first), with
+`doer: diy|bengkel` (who is *planned* to do it — the actual executor is the
+completing visit's `vendor`) and free-text `spec` (part no, capacity, torque;
+shown in DIY reminders as shopping info).
+
+- **Completion** = posting a visit line item carrying `plan_item_id`
+  (validated against the visit's vehicle, 400 on mismatch). Last-done is the
+  linked item from the visit with the greatest (date, odometer); DIY work is
+  a normal visit with `vendor: "DIY"` (price-0 items are fine).
+- **Baseline**: `baseline_date`/`baseline_km` apply only while no line item
+  is linked. No silent fallbacks — an interval whose last-done is unknown
+  gets `status: "no-baseline"` and is excluded from reminders until fixed.
+  Likewise a completion whose visit lacks an odometer surfaces as
+  `missing: ["baseline_km"]` rather than silently reusing older data.
+- **Trackers**: a row with no interval at all is a pure consumable tracker
+  (`status: "pantau"`) — shows the installed part (latest linked item's
+  description) and its age, never becomes due. Pair it with an
+  interval-bearing `periksa` row for wear-based items (ban, kampas rem).
+- Plan items are created via the API; edits/deletes go through
+  `wrangler d1 execute --remote` (admin convention) — no PUT/DELETE exists.
+
+The due list (`GET /api/due` `.plan`, dashboard, Telegram) grouped by `doer`
+doubles as a DIY shopping list (spec included) and a dictatable work order
+for street shops that only do what you ask.
 
 ## Refuel entry workflow
 
@@ -73,8 +106,9 @@ reminders fresh.
   "category": "rutin",                        // required, enum above
   "total": 60000,                             // optional, default unit_price*qty
   "checkpoint_note": "ganti tiap 2000 km",    // optional, free text
-  "due_date": "2026-08-14",                   // optional, reminder by date
-  "due_km": 51100                             // optional, reminder by ABSOLUTE km
+  "due_date": "2026-08-14",                   // optional, one-shot reminder by date
+  "due_km": 51100,                            // optional, one-shot reminder by ABSOLUTE km
+  "plan_item_id": 3                           // optional, completes a maintenance-plan task
 }
 ```
 
@@ -94,12 +128,16 @@ reminders fresh.
 | DELETE | `/api/attachments/:id` | remove an attachment (R2 object + metadata) |
 | GET | `/api/vehicles/:id/odometer` | fuel log + km/l + averages |
 | POST | `/api/vehicles/:id/odometer` | `{date, odometer_km, liters?, total?, note?}` |
-| POST | `/api/items/:id/done` | mark checkpoint handled |
-| GET | `/api/due` | currently due checkpoints (what the daily cron sends) |
+| GET | `/api/vehicles/:id/plan` | maintenance plan + computed last-done/next-due/status |
+| POST | `/api/vehicles/:id/plan-items` | add recurring plan items: `{plan_items: [...]}` |
+| POST | `/api/items/:id/done` | mark one-shot checkpoint handled |
+| GET | `/api/due` | `{checkpoints, plan, stale}` — what the daily cron sends |
 
-Reminder rule: due when `due_date` within `REMINDER_DAYS_AHEAD` (14) days or
-`due_km` within `REMINDER_KM_AHEAD` (500) km of the vehicle's current
+Reminder rule: due when the date is within `REMINDER_DAYS_AHEAD` (14) days or
+the km within `REMINDER_KM_AHEAD` (500) km of the vehicle's current
 odometer = max(visit odometers, odometer log). Sold vehicles excluded.
+Vehicles whose newest odometer reading is older than
+`REMINDER_ODO_STALE_DAYS` (45) days get a stale-odometer warning.
 
 ## Worked example: receipt → API calls
 
