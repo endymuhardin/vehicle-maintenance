@@ -133,6 +133,8 @@ main > *:nth-child(6) { animation-delay: 0.28s; }
   letter-spacing: 0.22em; text-transform: uppercase;
   color: var(--orange);
 }
+.panel-title + .panel-sub { margin-top: -8px; }
+.panel-sub { margin: 0 0 12px; font-size: 13px; color: var(--ink-dim); }
 
 .muted { color: var(--ink-dim); }
 
@@ -268,11 +270,14 @@ main > *:nth-child(6) { animation-delay: 0.28s; }
   letter-spacing: 0.14em; color: var(--ink-dim);
 }
 .plan-group-title .icon { width: 14px; height: 14px; }
+.plan-item-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .plan-action {
   color: var(--ink-dim); font-family: var(--display); font-size: 13px;
   text-transform: uppercase; letter-spacing: 0.08em;
 }
 .plan-spec { font-family: var(--mono); font-size: 12px; color: var(--ink-dim); }
+.items.plan tr.plan-row.due { background: #201c14; }
+.items.plan tr.plan-row.overdue { background: #201414; }
 .due-spec { font-family: var(--mono); font-size: 12px; color: var(--blue); }
 .stale-warn {
   display: flex; align-items: flex-start; gap: 6px;

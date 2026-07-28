@@ -397,10 +397,18 @@ function planUsage(p: ComputedPlanItem, latestKm: number | null, today: string):
   return parts.length > 0 ? parts.join(' · ') : '—'
 }
 
+// Most urgent first — the point of this table is "what's coming up", not "what happened".
+const PLAN_STATUS_RANK: Record<ComputedPlanItem['status'], number> = {
+  overdue: 0, due: 1, 'no-baseline': 2, ok: 3, pantau: 4,
+}
+
 const PlanSection: FC<{ plan: ComputedPlanItem[]; latestKm: number | null; today: string }> =
-  ({ plan, latestKm, today }) => (
+  ({ plan, latestKm, today }) => {
+    const sorted = [...plan].sort((a, b) => PLAN_STATUS_RANK[a.status] - PLAN_STATUS_RANK[b.status])
+    return (
     <section class="panel">
       <h2 class="panel-title"><Icon name="wrench" />Rencana Perawatan</h2>
+      <p class="panel-sub">Jadwal berikutnya, dihitung dari riwayat servis di atas — bukan catatan yang sudah dikerjakan.</p>
       {plan.length === 0 ? (
         <p class="muted">Belum ada rencana perawatan. Tambahkan via <code>POST /api/vehicles/:id/plan-items</code>.</p>
       ) : (
@@ -408,34 +416,36 @@ const PlanSection: FC<{ plan: ComputedPlanItem[]; latestKm: number | null; today
         <table class="items plan">
           <thead>
             <tr>
-              <th>item</th><th>interval</th><th /><th>terakhir</th>
-              <th>pemakaian</th><th>berikutnya</th><th>status</th>
+              <th>item</th><th>status</th><th>berikutnya</th>
+              <th>pemakaian</th><th>terakhir</th><th>interval</th>
             </tr>
           </thead>
           <tbody>
-            {plan.map((p) => (
-              <tr>
+            {sorted.map((p) => (
+              <tr class={p.status === 'overdue' || p.status === 'due' ? `plan-row ${p.status}` : ''}>
                 <td class="desc">
-                  <span class="plan-action">{p.action}</span> {p.item}
+                  <div class="plan-item-head">
+                    <span class="plan-action">{p.action}</span> {p.item}
+                    <DoerChip doer={p.doer} />
+                  </div>
                   {p.installed_desc ? <div class="plan-spec">{p.installed_desc}</div> : null}
                   {p.spec ? <div class="plan-spec">{p.spec}</div> : null}
                 </td>
-                <td class="mono">{planInterval(p)}</td>
-                <td><DoerChip doer={p.doer} /></td>
-                <td class="mono">
-                  {p.last_done_km !== null ? `${p.last_done_km.toLocaleString('id-ID')} km` : ''}
-                  {p.last_done_km !== null && p.last_done_date ? ' · ' : ''}
-                  {p.last_done_date ? tanggal(p.last_done_date) : ''}
-                  {p.last_done_km === null && !p.last_done_date ? '—' : ''}
-                </td>
-                <td class="mono">{planUsage(p, latestKm, today)}</td>
+                <td><span class={`chip ${p.status}`}>{PLAN_STATUS_TEXT[p.status]}</span></td>
                 <td class="mono">
                   {p.next_due_km !== null ? `${p.next_due_km.toLocaleString('id-ID')} km` : ''}
                   {p.next_due_km !== null && p.next_due_date ? ' / ' : ''}
                   {p.next_due_date ? tanggal(p.next_due_date) : ''}
                   {p.next_due_km === null && !p.next_due_date ? '—' : ''}
                 </td>
-                <td><span class={`chip ${p.status}`}>{PLAN_STATUS_TEXT[p.status]}</span></td>
+                <td class="mono">{planUsage(p, latestKm, today)}</td>
+                <td class="mono">
+                  {p.last_done_km !== null ? `${p.last_done_km.toLocaleString('id-ID')} km` : ''}
+                  {p.last_done_km !== null && p.last_done_date ? ' · ' : ''}
+                  {p.last_done_date ? tanggal(p.last_done_date) : ''}
+                  {p.last_done_km === null && !p.last_done_date ? '—' : ''}
+                </td>
+                <td class="mono">{planInterval(p)}</td>
               </tr>
             ))}
           </tbody>
@@ -443,7 +453,8 @@ const PlanSection: FC<{ plan: ComputedPlanItem[]; latestKm: number | null; today
         </div>
       )}
     </section>
-  )
+    )
+  }
 
 export const VehiclePage: FC<{
   vehicle: VehicleRow
@@ -468,12 +479,10 @@ export const VehiclePage: FC<{
       {stale !== null ? <StaleWarn stale={[stale]} /> : null}
     </section>
 
-    <PlanSection plan={plan} latestKm={vehicle.latest_km} today={today} />
-
     <FuelSection vehicle={vehicle} fuel={fuel} />
 
     <section class="panel">
-      <h2 class="panel-title">Kunjungan</h2>
+      <h2 class="panel-title"><Icon name="calendar" />Riwayat Servis</h2>
       {visits.length === 0 ? <p class="muted">Belum ada kunjungan.</p> : (
         <ul class="session-list">
           {visits.map((vi) => (
@@ -505,6 +514,8 @@ export const VehiclePage: FC<{
         </form>
       </details>
     </section>
+
+    <PlanSection plan={plan} latestKm={vehicle.latest_km} today={today} />
 
     <section class="panel danger-zone">
       <details>
