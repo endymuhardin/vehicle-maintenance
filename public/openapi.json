@@ -480,6 +480,7 @@
         "properties": {
           "id": { "type": "integer" },
           "name": { "type": "string" },
+          "plate": { "type": ["string", "null"], "description": "Nomor polisi, when known" },
           "status": { "type": "string", "enum": ["active", "sold"] },
           "latest_km": { "type": ["integer", "null"], "description": "Max over visit odometers and the odometer log" },
           "last_date": { "type": ["string", "null"], "format": "date" },

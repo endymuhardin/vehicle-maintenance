@@ -5,6 +5,7 @@ import type { ComputedPlanItem, DuePlanItem, StaleOdo, Doer } from './plan'
 export type VehicleRow = {
   id: number
   name: string
+  plate: string | null
   status: 'active' | 'sold'
   latest_km: number | null
   last_date: string | null
@@ -284,6 +285,7 @@ export const Dashboard: FC<{
         {vehicles.map((v) => (
           <a href={`/vehicles/${v.id}`} class={`vehicle-card ${v.status}`}>
             <div class="vehicle-name">{v.name}</div>
+            {v.plate !== null ? <span class="plate">{v.plate}</span> : null}
             {v.status === 'sold' ? <span class="chip sold">TERJUAL</span> : null}
             {v.latest_km !== null ? <Odometer km={v.latest_km} /> : <span class="muted">belum ada catatan</span>}
             <dl class="vehicle-stats">
@@ -469,6 +471,7 @@ export const VehiclePage: FC<{
     <section class="panel">
       <div class="vehicle-head">
         <h1 class="vehicle-title">{vehicle.name}</h1>
+        {vehicle.plate !== null ? <span class="plate">{vehicle.plate}</span> : null}
         {vehicle.status === 'sold' ? <span class="chip sold">TERJUAL</span> : null}
         {vehicle.latest_km !== null ? <Odometer km={vehicle.latest_km} /> : null}
       </div>

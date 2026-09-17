@@ -9,6 +9,7 @@ DROP TABLE IF EXISTS vehicles;
 CREATE TABLE vehicles (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL UNIQUE,
+  plate TEXT,                  -- nomor polisi, when known
   status TEXT NOT NULL CHECK (status IN ('active', 'sold'))
 );
 
