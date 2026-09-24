@@ -43,7 +43,8 @@ A checkpoint or plan item becomes *due* when its date falls within
 vehicle's current odometer (max over visit odometers and the odometer log).
 Sold vehicles are excluded from reminders. Vehicles whose newest odometer
 reading is older than `REMINDER_ODO_STALE_DAYS` days get a stale-odometer
-warning in the daily digest (all three thresholds in `wrangler.jsonc` vars).
+warning in the daily digest (all three thresholds in `wrangler.jsonc` vars),
+except vehicles with `odometer_broken_since` set (odometer out of order).
 
 ## Setup
 

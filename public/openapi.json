@@ -481,6 +481,7 @@
           "id": { "type": "integer" },
           "name": { "type": "string" },
           "plate": { "type": ["string", "null"], "description": "Nomor polisi, when known" },
+          "odometer_broken_since": { "type": ["string", "null"], "format": "date", "description": "Set while the odometer is out of order; excludes the vehicle from the stale-odometer warning" },
           "status": { "type": "string", "enum": ["active", "sold"] },
           "latest_km": { "type": ["integer", "null"], "description": "Max over visit odometers and the odometer log" },
           "last_date": { "type": ["string", "null"], "format": "date" },

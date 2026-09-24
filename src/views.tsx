@@ -6,6 +6,7 @@ export type VehicleRow = {
   id: number
   name: string
   plate: string | null
+  odometer_broken_since: string | null
   status: 'active' | 'sold'
   latest_km: number | null
   last_date: string | null

@@ -63,7 +63,7 @@ const LATEST_KM_SQL = `(SELECT MAX(mk) FROM (
 ))`
 
 const VEHICLE_SQL = `
-  SELECT v.id, v.name, v.plate, v.status,
+  SELECT v.id, v.name, v.plate, v.status, v.odometer_broken_since,
     ${LATEST_KM_SQL} AS latest_km,
     (SELECT MAX(vi.date) FROM visits vi WHERE vi.vehicle_id = v.id) AS last_date,
     (SELECT COUNT(*) FROM visits vi WHERE vi.vehicle_id = v.id) AS visit_count,

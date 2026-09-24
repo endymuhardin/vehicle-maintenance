@@ -10,6 +10,7 @@ CREATE TABLE vehicles (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL UNIQUE,
   plate TEXT,                  -- nomor polisi, when known
+  odometer_broken_since TEXT,  -- ISO date; NULL = odometer works. Skips stale-odometer warning
   status TEXT NOT NULL CHECK (status IN ('active', 'sold'))
 );
 

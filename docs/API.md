@@ -139,7 +139,9 @@ Reminder rule: due when the date is within `REMINDER_DAYS_AHEAD` (14) days or
 the km within `REMINDER_KM_AHEAD` (500) km of the vehicle's current
 odometer = max(visit odometers, odometer log). Sold vehicles excluded.
 Vehicles whose newest odometer reading is older than
-`REMINDER_ODO_STALE_DAYS` (45) days get a stale-odometer warning.
+`REMINDER_ODO_STALE_DAYS` (45) days get a stale-odometer warning, unless
+`vehicles.odometer_broken_since` is set (odometer out of order; set/cleared
+via SQL).
 
 ## Worked example: receipt → API calls
 

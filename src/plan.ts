@@ -173,7 +173,8 @@ export async function computeDuePlanItems(env: Env, now: Date): Promise<DuePlanI
 }
 
 // Active vehicles whose newest odometer reading (visit or fuel log) is older
-// than REMINDER_ODO_STALE_DAYS — or that never had one at all.
+// than REMINDER_ODO_STALE_DAYS — or that never had one at all. Vehicles with
+// odometer_broken_since set are skipped: no reading can be taken.
 export async function findStaleOdometers(env: Env, now: Date): Promise<StaleOdo[]> {
   const staleDays = requireIntEnv(env, 'REMINDER_ODO_STALE_DAYS')
   const cutoff = new Date(now.getTime() - staleDays * 86400_000).toISOString().slice(0, 10)
@@ -184,7 +185,7 @@ export async function findStaleOdometers(env: Env, now: Date): Promise<StaleOdo[
         UNION ALL
         SELECT MAX(o.date) FROM odometer_logs o WHERE o.vehicle_id = v.id
       )) AS newest_reading_date
-    FROM vehicles v WHERE v.status = 'active' ORDER BY v.id
+    FROM vehicles v WHERE v.status = 'active' AND v.odometer_broken_since IS NULL ORDER BY v.id
   `).all<StaleOdo>()
   return results.filter((r) => r.newest_reading_date === null || r.newest_reading_date < cutoff)
 }
