@@ -71,8 +71,9 @@ Both diagrams use the same bike-side pin positions.
 | Turn signals | Br/W→Ch / Dg | Br/W→Ch / Dg |
 | Clutch switch | R/B→B/W | own wire pair → R/B, B/W |
 
-The 3C1 has one Br wire for both HI and PASS, so one of the bike's two Br
-cavities stays empty.
+The 3C1 has one Br wire for both HI and PASS, so one of the two Br
+pigtails on the replacement plug goes unused. Its terminal stays in the
+cavity; only its wire end is sealed.
 
 ## 3. Parts and tools
 
@@ -147,7 +148,7 @@ For each row:
 | 6 | yellow (Y) | high beam | female bullet | yellow | light brown | PASS button | while pressed; no beep released (high/low at LO) |
 | 7 | pink (P) | horn | 4-pin, top-right position (P pigtail) | pink | black (the branch you keep) | horn button | while pressed; no beep released |
 | 8 | black, one branch (B) | horn ground | female bullet; trim the other branch and insulate it | black | pink | horn button | while pressed; no beep released |
-| 9 | light brown (Br) | 12 V for high beam and PASS | 4-pin, top-left position (Br pigtail); bottom-left stays empty | light brown | yellow | PASS button, then light switch at ON + high/low | PASS pressed; also ON + HI. No beep at ON + LO with PASS released |
+| 9 | light brown (Br) | 12 V for high beam and PASS | 4-pin, top-left position (Br pigtail). Bottom-left Br pigtail: leave the terminal in, cut the pigtail to 2–3 cm and seal the end (live 12 V) | light brown | yellow | PASS button, then light switch at ON + high/low | PASS pressed; also ON + HI. No beep at ON + LO with PASS released |
 | 10 | clutch wire 2 | clutch ground | 3-pin, middle position (B/W pigtail) | clutch wire 2 | clutch wire 1 | clutch lever | lever pulled; no beep released |
 | 11 | clutch wire 1 | starter safety | 4-pin, bottom-right position (R/B pigtail) | clutch wire 1 | clutch wire 2 | clutch lever | lever pulled; no beep released |
 
