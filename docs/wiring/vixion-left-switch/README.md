@@ -207,6 +207,10 @@ clutch released:
   the whole headlamp, including the position light. Daytime headlight is
   mandatory under UU 22/2009 Pasal 107(2).
 
+## Flyer
+
+One-page summary in Bahasa Indonesia for sharing: [flyer/flyer-id.png](flyer/flyer-id.png) (source: [flyer/flyer-id.html](flyer/flyer-id.html), rendered with headless Chrome at 1080 px wide, 2x scale).
+
 ## References
 
 Local copies are in `refs/`, which is gitignored (copyrighted material).

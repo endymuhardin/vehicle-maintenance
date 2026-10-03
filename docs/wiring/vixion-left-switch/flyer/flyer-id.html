@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Saklar 3C1 di ANV</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { width: 1080px; background: #fff; color: #161616; font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif; }
+  .page { padding: 44px 48px 36px; }
+  header { border-bottom: 4px solid #161616; padding-bottom: 18px; margin-bottom: 24px; }
+  h1 { font-size: 46px; line-height: 1.08; font-weight: 800; letter-spacing: -0.5px; }
+  .sub { font-size: 21px; margin-top: 10px; color: #444; }
+  h2 { font-size: 25px; font-weight: 800; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+  h2 .n { display: inline-flex; width: 34px; height: 34px; border-radius: 50%; background: #161616; color: #fff; font-size: 19px; align-items: center; justify-content: center; }
+  section { margin-bottom: 24px; }
+  .row { display: flex; gap: 22px; }
+  .note { font-size: 17px; color: #444; margin-top: 8px; line-height: 1.35; }
+
+  /* plugs */
+  .plugs { display: flex; gap: 22px; align-items: flex-start; }
+  .plug { border: 2px solid #161616; border-radius: 10px; padding: 12px 14px 14px; }
+  .plug .cap { font-size: 16px; font-weight: 700; margin-bottom: 8px; text-align: center; }
+  .latch { width: 60px; height: 9px; background: #161616; border-radius: 3px; margin: 0 auto 8px; }
+  .grid4 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .cav { border: 1.5px solid #888; border-radius: 6px; padding: 7px 8px; min-width: 112px; text-align: center; font-size: 15px; line-height: 1.2; }
+  .cav b { display: block; font-size: 19px; }
+  .bullets { display: flex; flex-direction: column; gap: 8px; }
+  .bullet { white-space: nowrap; display: flex; align-items: center; gap: 10px; font-size: 16px; }
+  .bullet b { font-size: 19px; min-width: 70px; white-space: nowrap; }
+  .plug.bul { flex: 1; }
+
+  .sw { display: inline-block; width: 22px; height: 22px; border-radius: 4px; border: 1.5px solid #161616; vertical-align: -5px; margin-right: 6px; }
+  .c-P  { background: #f48fb1; }
+  .c-Br { background: #a0704a; }
+  .c-RB { background: repeating-linear-gradient(90deg, #d32f2f 0 8px, #161616 8px 12px); }
+  .c-Dg { background: #1b5e20; }
+  .c-BW { background: repeating-linear-gradient(90deg, #161616 0 8px, #fff 8px 12px); }
+  .c-Ch { background: #4e2c12; }
+  .c-Y  { background: #fdd835; }
+  .c-BrW{ background: repeating-linear-gradient(90deg, #a0704a 0 8px, #fff 8px 12px); }
+  .c-B  { background: #161616; }
+  .c-G  { background: #43a047; }
+  .c-L  { background: #1e88e5; }
+  .c-x  { background: repeating-linear-gradient(45deg, #ccc 0 4px, #fff 4px 8px); }
+
+  table { border-collapse: collapse; width: 100%; font-size: 18px; }
+  th { text-align: left; background: #161616; color: #fff; padding: 8px 10px; font-size: 16px; }
+  td { padding: 7px 10px; border-bottom: 1px solid #ccc; vertical-align: middle; line-height: 1.25; }
+  tr:nth-child(even) td { background: #f5f5f5; }
+  td.dim { color: #777; }
+
+  .warn { border: 3px solid #b00020; border-radius: 10px; padding: 14px 18px; }
+  .warn h2 { color: #b00020; }
+  .warn h2 .n { background: #b00020; }
+  ul { padding-left: 22px; font-size: 18px; line-height: 1.4; }
+  li { margin-bottom: 5px; }
+  .col { flex: 1; }
+  footer { border-top: 2px solid #161616; padding-top: 12px; font-size: 16px; color: #444; display: flex; justify-content: space-between; gap: 20px; }
+  footer b { color: #161616; }
+  footer span:last-child { white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>Pasang saklar kiri V-ixion lama (3C1) di All New Vixion</h1>
+    <div class="sub">Soket dan kabel bawaan motor tidak dipotong. Semua sambungan ada di sisi saklar, pakai soket pengganti 4-pin dan 3-pin plus 3 terminal peluru betina.</div>
+  </header>
+
+  <section>
+    <h2><span class="n">1</span>Soket sisi motor (dilihat dari muka colokan, pengunci di atas)</h2>
+    <div class="plugs">
+      <div class="plug">
+        <div class="cap">4-pin</div>
+        <div class="latch"></div>
+        <div class="grid4">
+          <div class="cav"><b><span class="sw c-P"></span>P</b>klakson</div>
+          <div class="cav"><b><span class="sw c-Br"></span>Br</b>+12 V kunci</div>
+          <div class="cav"><b><span class="sw c-RB"></span>R/B</b>sinyal kopling</div>
+          <div class="cav"><b><span class="sw c-Br"></span>Br</b>+12 V kunci</div>
+        </div>
+      </div>
+      <div class="plug">
+        <div class="cap">3-pin</div>
+        <div class="latch"></div>
+        <div class="grid3">
+          <div class="cav"><b><span class="sw c-Dg"></span>Dg</b>sein kanan</div>
+          <div class="cav"><b><span class="sw c-BW"></span>B/W</b>massa kopling (ECU)</div>
+          <div class="cav"><b><span class="sw c-Ch"></span>Ch</b>sein kiri</div>
+        </div>
+      </div>
+      <div class="plug bul">
+        <div class="cap">Peluru (jantan)</div>
+        <div class="bullets">
+          <div class="bullet"><b><span class="sw c-Y"></span>Y</b>lampu jauh</div>
+          <div class="bullet"><b><span class="sw c-BrW"></span>Br/W</b>+12 V flasher</div>
+          <div class="bullet"><b><span class="sw c-B"></span>B</b>massa klakson</div>
+        </div>
+      </div>
+    </div>
+    <div class="note">Soket pengganti dari toko adalah <b>cerminan</b> soket motor. Dilihat dari muka colokannya: 4-pin atas <b>Br | P</b>, bawah <b>Br | R/B</b>; 3-pin <b>Ch | B/W | Dg</b>. Warna kabel soket pengganti tidak ada hubungannya, cek pakai multitester lalu tandai.</div>
+  </section>
+
+  <section>
+    <h2><span class="n">2</span>Peta sambungan: kabel saklar 3C1 → soket motor</h2>
+    <table>
+      <tr><th>Kabel saklar 3C1</th><th>Fungsi</th><th>Sambung ke</th></tr>
+      <tr><td><span class="sw c-Ch"></span>Cokelat tua (Ch)</td><td>sein kiri</td><td>3-pin Ch</td></tr>
+      <tr><td><span class="sw c-Dg"></span>Hijau tua (Dg)</td><td>sein kanan</td><td>3-pin Dg</td></tr>
+      <tr><td><span class="sw c-BrW"></span>Cokelat/putih (Br/W)</td><td>+12 V sein</td><td>peluru Br/W</td></tr>
+      <tr><td><span class="sw c-Y"></span>Kuning (Y)</td><td>lampu jauh</td><td>peluru Y</td></tr>
+      <tr><td><span class="sw c-P"></span>Pink (P)</td><td>klakson</td><td>4-pin P</td></tr>
+      <tr><td><span class="sw c-B"></span>Hitam (B), ambil satu cabang</td><td>massa klakson</td><td>peluru B</td></tr>
+      <tr><td><span class="sw c-Br"></span>Cokelat muda (Br)</td><td>+12 V lampu jauh &amp; PASS</td><td>4-pin Br (salah satu)</td></tr>
+      <tr><td><span class="sw c-x"></span>Kabel saklar kopling 1</td><td>sinyal starter</td><td>4-pin R/B</td></tr>
+      <tr><td><span class="sw c-x"></span>Kabel saklar kopling 2</td><td>massa kopling</td><td>3-pin B/W</td></tr>
+      <tr><td class="dim"><span class="sw c-G"></span>Hijau (G), <span class="sw c-L"></span>biru (L)</td><td class="dim">lampu dekat, lampu kota</td><td class="dim">tidak dipakai, isolasi ujungnya</td></tr>
+    </table>
+  </section>
+
+  <section class="warn">
+    <h2><span class="n">!</span>Jangan sampai salah</h2>
+    <ul>
+      <li><b>Massa klakson ke peluru B, bukan ke R/B.</b> R/B itu sinyal saklar kopling untuk pengaman starter. Kalau salah: klakson cuma bunyi saat netral atau kopling ditarik.</li>
+      <li><b>Saklar lampu 3C1 biarkan di ON.</b> Saklar dim 3C1 hanya dapat arus lewat posisi ON, jadi lampu jauh dan dim cuma jalan di ON. PASS jalan di posisi mana pun.</li>
+      <li><b>Lampu depan selalu nyala itu normal.</b> Lampu dekat dinyalakan ECU (AHO), tidak lewat saklar kiri.</li>
+      <li><b>Kabel Br kedua di soket pengganti tidak dipakai.</b> Terminalnya biarkan di soket, kabelnya potong pendek dan tutup rapat: ini +12 V hidup.</li>
+    </ul>
+  </section>
+
+  <div class="row">
+    <section class="col">
+      <h2><span class="n">3</span>Cek bunyi sebelum solder</h2>
+      <table>
+        <tr><th>Probe di kabel 3C1</th><th>Bunyi saat</th></tr>
+        <tr><td>Br/W – Ch</td><td>sein ke kiri</td></tr>
+        <tr><td>Br/W – Dg</td><td>sein ke kanan</td></tr>
+        <tr><td>Br – Y</td><td>PASS ditekan; ON + HI</td></tr>
+        <tr><td>P – B</td><td>tombol klakson ditekan</td></tr>
+        <tr><td>kopling 1 – 2</td><td>tuas kopling ditarik</td></tr>
+      </table>
+    </section>
+    <section class="col">
+      <h2><span class="n">4</span>Sambung &amp; tes</h2>
+      <ul>
+        <li>Kupas ±10 mm, anyam lurus (inline), solder 330–350 °C sampai tembus.</li>
+        <li>Lem tembak + heat shrink. Sambungan dibuat selang-seling, bundel diikat.</li>
+        <li>Tes: klakson bunyi di semua gigi. Masuk gigi + kopling dilepas → <b>tidak bisa</b> starter. Kopling ditarik → bisa.</li>
+      </ul>
+    </section>
+  </div>
+
+  <footer>
+    <span>Diukur langsung di motor (ANV 2017). Kode warna kabel Yamaha: Br cokelat, Ch cokelat tua, Dg hijau tua, L biru, P pink.</span>
+    <span>Panduan lengkap: <b>github.com/endymuhardin/vehicle-maintenance</b><br>docs/wiring/vixion-left-switch</span>
+  </footer>
+</div>
+</body>
+</html>
