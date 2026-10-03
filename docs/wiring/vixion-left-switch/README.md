@@ -59,9 +59,19 @@ Checked on the bike (switch unplugged, continuity):
 
 Photos of the bike-side plugs: `photos/`.
 
-## Splice map
+## Diagrams
 
-![Splice diagram](splice-diagram.svg)
+Both use the same bike-side pin positions, so they can be compared directly.
+
+Stock switch to bike:
+
+![Stock switch to bike-side plugs](stock-switch-to-bike.svg)
+
+Old switch to bike:
+
+![Old switch to bike-side plugs](old-switch-to-bike.svg)
+
+## Splice map
 
 | Old switch wire | Bike-side pin |
 |---|---|

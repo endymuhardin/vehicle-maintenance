@@ -10,17 +10,17 @@
     .h{font-weight:bold;font-size:15px}
     .s{font-size:11px}
     .pin{fill:#fff;stroke:#111;stroke-width:1.5}
+    .pinx{fill:#fff;stroke:#999;stroke-width:1.5;stroke-dasharray:2 2}
     .warn{fill:#b00020;font-size:12px}
   </style>
 
-  <!-- titles -->
-  <text x="20" y="28" class="t h">Old V-ixion (3C1) left switch: internals</text>
+  <text x="20" y="28" class="t h">Old V-ixion (3C1) left switch</text>
   <text x="640" y="28" class="t h">ANV / Vixion R bike-side plugs</text>
   <rect x="20" y="40" width="400" height="560" class="box"/>
   <rect x="640" y="40" width="300" height="560" class="box"/>
 
   <!-- light switch + dimmer + pass block -->
-  <rect x="40" y="55" width="270" height="185" class="sub"/>
+  <rect x="40" y="55" width="270" height="195" class="sub"/>
   <text x="50" y="75" class="t" font-weight="bold">Light switch</text>
   <text x="50" y="93" class="t s">OFF: open</text>
   <text x="50" y="108" class="t s">Small: Br–L</text>
@@ -30,16 +30,16 @@
   <text x="50" y="181" class="t s">LO: common–G</text>
   <text x="50" y="206" class="t" font-weight="bold">PASS (fed from Br directly)</text>
   <text x="50" y="224" class="t s">pressed: Br–Y, any light-switch position</text>
+  <text x="50" y="242" class="t s">Keep the light switch at ON.</text>
 
-  <!-- wires out of block -->
   <line x1="310" y1="80" x2="640" y2="80" class="w"/>
-  <line x1="310" y1="130" x2="640" y2="130" class="w"/>
-  <line x1="310" y1="175" x2="520" y2="175" class="un"/>
-  <line x1="310" y1="215" x2="520" y2="215" class="un"/>
+  <line x1="310" y1="150" x2="640" y2="150" class="w"/>
+  <line x1="310" y1="200" x2="520" y2="200" class="un"/>
+  <line x1="310" y1="235" x2="520" y2="235" class="un"/>
   <text x="430" y="74" class="t">Br (light brown)</text>
-  <text x="430" y="124" class="t">Y (yellow)</text>
-  <text x="430" y="169" class="g">G (green): insulate</text>
-  <text x="430" y="209" class="g">L (blue): insulate</text>
+  <text x="430" y="144" class="t">Y (yellow)</text>
+  <text x="430" y="194" class="g">G (green): insulate</text>
+  <text x="430" y="229" class="g">L (blue): insulate</text>
 
   <!-- horn -->
   <text x="40" y="282" class="t" font-weight="bold">Horn button</text>
@@ -51,7 +51,7 @@
   <text x="430" y="264" class="t">P (pink)</text>
   <text x="430" y="314" class="t">B (black, horn ground)</text>
 
-  <!-- turn signals -->
+  <!-- turn -->
   <text x="40" y="392" class="t" font-weight="bold">Turn switch</text>
   <text x="40" y="408" class="t s">L: Br/W–Ch   R: Br/W–Dg</text>
   <polyline points="640,375 260,375 260,420 280,420" class="w"/>
@@ -78,22 +78,19 @@
   <text x="430" y="559" class="t">clutch wire 2</text>
 
   <!-- bike-side pins -->
-  <g>
-    <circle cx="640" cy="80" r="5" class="pin"/><text x="655" y="85" class="t">4-pin: Br</text>
-    <text x="655" y="101" class="g s">2nd Br cavity: empty (same supply)</text>
-    <circle cx="640" cy="130" r="5" class="pin"/><text x="655" y="135" class="t">bullet: Y</text>
-    <circle cx="640" cy="270" r="5" class="pin"/><text x="655" y="275" class="t">4-pin: P</text>
-    <circle cx="640" cy="320" r="5" class="pin"/><text x="655" y="325" class="t">bullet: B (chassis ground)</text>
-    <circle cx="640" cy="375" r="5" class="pin"/><text x="655" y="380" class="t">bullet: Br/W (flasher 12 V)</text>
-    <circle cx="640" cy="420" r="5" class="pin"/><text x="655" y="425" class="t">3-pin: Ch</text>
-    <circle cx="640" cy="460" r="5" class="pin"/><text x="655" y="465" class="t">3-pin: Dg</text>
-    <circle cx="640" cy="515" r="5" class="pin"/><text x="655" y="520" class="t">4-pin: R/B (starter safety)</text>
-    <circle cx="640" cy="565" r="5" class="pin"/><text x="655" y="570" class="t">3-pin: B/W (ground via ECU)</text>
-  </g>
+  <circle cx="640" cy="80" r="5" class="pin"/><text x="655" y="85" class="t">4-pin: Br</text>
+  <circle cx="640" cy="105" r="5" class="pinx"/><text x="655" y="110" class="g">4-pin: Br (empty, same supply)</text>
+  <circle cx="640" cy="150" r="5" class="pin"/><text x="655" y="155" class="t">bullet: Y</text>
+  <circle cx="640" cy="270" r="5" class="pin"/><text x="655" y="275" class="t">4-pin: P</text>
+  <circle cx="640" cy="320" r="5" class="pin"/><text x="655" y="325" class="t">bullet: B (chassis ground)</text>
+  <circle cx="640" cy="375" r="5" class="pin"/><text x="655" y="380" class="t">bullet: Br/W (flasher 12 V)</text>
+  <circle cx="640" cy="420" r="5" class="pin"/><text x="655" y="425" class="t">3-pin: Ch</text>
+  <circle cx="640" cy="460" r="5" class="pin"/><text x="655" y="465" class="t">3-pin: Dg</text>
+  <circle cx="640" cy="515" r="5" class="pin"/><text x="655" y="520" class="t">4-pin: R/B (starter safety)</text>
+  <circle cx="640" cy="565" r="5" class="pin"/><text x="655" y="570" class="t">3-pin: B/W (ground via ECU)</text>
 
-  <!-- notes -->
-  <text x="655" y="160" class="g s">Low beam: always on (Br + ECU Y/B),</text>
-  <text x="655" y="175" class="g s">not through this switch</text>
+  <text x="655" y="180" class="g s">Low beam: always on (Br + ECU Y/B),</text>
+  <text x="655" y="195" class="g s">not through this switch</text>
   <text x="655" y="590" class="warn">R/B: clutch switch only. Never a ground.</text>
-  <text x="20" y="625" class="g s">Light switch kept at ON permanently. Bike-side harness stock; all splices on the switch side.</text>
+  <text x="20" y="625" class="g s">Source: Yamaha V-ixion 3C1 service manual p. 8-57 and wiring diagram; bike side as in the stock diagram.</text>
 </svg>

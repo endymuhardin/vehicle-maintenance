@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 640" font-family="Helvetica, Arial, sans-serif" font-size="13">
+  <rect width="960" height="640" fill="#ffffff"/>
+  <style>
+    .box{fill:none;stroke:#333;stroke-width:1.5}
+    .sub{fill:#f4f4f4;stroke:#666;stroke-width:1}
+    .w{stroke:#111;stroke-width:2;fill:none}
+    .t{fill:#111}
+    .g{fill:#888}
+    .h{font-weight:bold;font-size:15px}
+    .s{font-size:11px}
+    .pin{fill:#fff;stroke:#111;stroke-width:1.5}
+    .warn{fill:#b00020;font-size:12px}
+  </style>
+
+  <text x="20" y="28" class="t h">Stock ANV / Vixion R left switch (R15 V3 B2P1)</text>
+  <text x="640" y="28" class="t h">ANV / Vixion R bike-side plugs</text>
+  <rect x="20" y="40" width="400" height="560" class="box"/>
+  <rect x="640" y="40" width="300" height="560" class="box"/>
+
+  <!-- HI/LO + PASS block -->
+  <rect x="40" y="55" width="270" height="140" class="sub"/>
+  <text x="50" y="75" class="t" font-weight="bold">HI/LO switch</text>
+  <text x="50" y="93" class="t s">HI: Br–Y</text>
+  <text x="50" y="108" class="t s">LO: open (low beam is always on)</text>
+  <text x="50" y="133" class="t" font-weight="bold">PASS</text>
+  <text x="50" y="151" class="t s">pressed: Br–Y</text>
+  <text x="50" y="176" class="t s">No light switch: headlight is controlled</text>
+  <text x="50" y="190" class="t s">by the ECU (automatic headlight-on)</text>
+
+  <line x1="310" y1="80" x2="640" y2="80" class="w"/>
+  <line x1="310" y1="105" x2="640" y2="105" class="w"/>
+  <line x1="310" y1="150" x2="640" y2="150" class="w"/>
+  <text x="430" y="74" class="t">Br (to HI/LO)</text>
+  <text x="430" y="99" class="t">Br (to PASS)</text>
+  <text x="430" y="144" class="t">Y</text>
+
+  <!-- horn -->
+  <text x="40" y="282" class="t" font-weight="bold">Horn button</text>
+  <polyline points="640,270 300,270 300,280" class="w"/>
+  <circle cx="300" cy="283" r="3" class="pin"/>
+  <line x1="300" y1="286" x2="318" y2="302" class="w"/>
+  <circle cx="300" cy="307" r="3" class="pin"/>
+  <polyline points="300,310 300,320 640,320" class="w"/>
+  <text x="430" y="264" class="t">P</text>
+  <text x="430" y="314" class="t">B</text>
+
+  <!-- turn -->
+  <text x="40" y="392" class="t" font-weight="bold">Turn switch</text>
+  <text x="40" y="408" class="t s">L: Br/W–Ch   R: Br/W–Dg</text>
+  <polyline points="640,375 260,375 260,420 280,420" class="w"/>
+  <polyline points="260,375 260,460 280,460" class="w"/>
+  <circle cx="283" cy="420" r="3" class="pin"/>
+  <circle cx="283" cy="460" r="3" class="pin"/>
+  <circle cx="303" cy="420" r="3" class="pin"/>
+  <circle cx="303" cy="460" r="3" class="pin"/>
+  <line x1="306" y1="420" x2="640" y2="420" class="w"/>
+  <line x1="306" y1="460" x2="640" y2="460" class="w"/>
+  <text x="430" y="369" class="t">Br/W</text>
+  <text x="430" y="414" class="t">Ch</text>
+  <text x="430" y="454" class="t">Dg</text>
+
+  <!-- clutch -->
+  <text x="40" y="527" class="t" font-weight="bold">Clutch lever switch</text>
+  <text x="40" y="543" class="t s">closed when lever pulled</text>
+  <polyline points="640,515 300,515 300,525" class="w"/>
+  <circle cx="300" cy="528" r="3" class="pin"/>
+  <line x1="300" y1="531" x2="318" y2="547" class="w"/>
+  <circle cx="300" cy="552" r="3" class="pin"/>
+  <polyline points="300,555 300,565 640,565" class="w"/>
+  <text x="430" y="509" class="t">R/B</text>
+  <text x="430" y="559" class="t">B/W</text>
+
+  <!-- bike-side pins -->
+  <circle cx="640" cy="80" r="5" class="pin"/><text x="655" y="85" class="t">4-pin: Br</text>
+  <circle cx="640" cy="105" r="5" class="pin"/><text x="655" y="110" class="t">4-pin: Br (same supply)</text>
+  <circle cx="640" cy="150" r="5" class="pin"/><text x="655" y="155" class="t">bullet: Y</text>
+  <circle cx="640" cy="270" r="5" class="pin"/><text x="655" y="275" class="t">4-pin: P</text>
+  <circle cx="640" cy="320" r="5" class="pin"/><text x="655" y="325" class="t">bullet: B (chassis ground)</text>
+  <circle cx="640" cy="375" r="5" class="pin"/><text x="655" y="380" class="t">bullet: Br/W (flasher 12 V)</text>
+  <circle cx="640" cy="420" r="5" class="pin"/><text x="655" y="425" class="t">3-pin: Ch</text>
+  <circle cx="640" cy="460" r="5" class="pin"/><text x="655" y="465" class="t">3-pin: Dg</text>
+  <circle cx="640" cy="515" r="5" class="pin"/><text x="655" y="520" class="t">4-pin: R/B (starter safety)</text>
+  <circle cx="640" cy="565" r="5" class="pin"/><text x="655" y="570" class="t">3-pin: B/W (ground via ECU)</text>
+
+  <text x="655" y="180" class="g s">Low beam: always on (Br + ECU Y/B),</text>
+  <text x="655" y="195" class="g s">not through this switch</text>
+  <text x="655" y="590" class="warn">R/B: clutch switch only. Never a ground.</text>
+  <text x="20" y="625" class="g s">Source: Yamaha YZF155 2019 (B2P1) electric diagram; plug colours checked on the bike.</text>
+</svg>
