@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 360" font-family="Helvetica, Arial, sans-serif" font-size="13">
+  <rect width="760" height="360" fill="#ffffff"/>
+  <style>
+    .t{fill:#111}
+    .g{fill:#777}
+    .h{font-weight:bold;font-size:14px}
+    .s{font-size:11px}
+    .body{fill:#f7f3e3;stroke:#333;stroke-width:1.5}
+    .cav{fill:#fff;stroke:#333;stroke-width:1.2}
+    .warn{fill:#b00020;font-size:12px}
+  </style>
+
+  <text x="20" y="28" class="t h">4-pin plug: cavity positions (wire-entry side)</text>
+
+  <!-- bike side -->
+  <text x="40" y="62" class="t" font-weight="bold">Bike side (harness), from the wire end</text>
+  <rect x="80" y="80" width="220" height="40" class="body"/>
+  <text x="190" y="105" text-anchor="middle" class="g s">flange top (narrow part of the T)</text>
+  <rect x="60" y="120" width="260" height="150" class="body"/>
+  <rect x="85" y="135" width="95" height="55" class="cav"/>
+  <circle cx="132" cy="162" r="14" fill="#e58fb0"/>
+  <text x="132" y="210" text-anchor="middle" class="t">P (pink)</text>
+  <rect x="200" y="135" width="95" height="55" class="cav"/>
+  <circle cx="247" cy="162" r="14" fill="#c8303a"/>
+  <text x="247" y="210" text-anchor="middle" class="t">R/B (red)</text>
+  <rect x="85" y="215" width="95" height="45" class="cav" transform="translate(0,5)"/>
+  <circle cx="132" cy="242" r="14" fill="#d9773a"/>
+  <text x="132" y="290" text-anchor="middle" class="t">Br</text>
+  <rect x="200" y="215" width="95" height="45" class="cav" transform="translate(0,5)"/>
+  <circle cx="247" cy="242" r="14" fill="#9a5a34"/>
+  <text x="247" y="290" text-anchor="middle" class="t">Br</text>
+
+  <!-- switch side (mirror) -->
+  <text x="420" y="62" class="t" font-weight="bold">Switch side (shop's plug), from its wire end</text>
+  <rect x="460" y="80" width="220" height="40" class="body"/>
+  <text x="570" y="105" text-anchor="middle" class="g s">same edge up</text>
+  <rect x="440" y="120" width="260" height="150" class="body"/>
+  <rect x="465" y="135" width="95" height="55" class="cav"/>
+  <text x="512" y="167" text-anchor="middle" class="t" font-weight="bold">R/B</text>
+  <text x="512" y="210" text-anchor="middle" class="t s">clutch wire 1</text>
+  <rect x="580" y="135" width="95" height="55" class="cav"/>
+  <text x="627" y="167" text-anchor="middle" class="t" font-weight="bold">P</text>
+  <text x="627" y="210" text-anchor="middle" class="t s">old pink</text>
+  <rect x="465" y="220" width="95" height="45" class="cav"/>
+  <text x="512" y="247" text-anchor="middle" class="t" font-weight="bold">Br</text>
+  <text x="512" y="290" text-anchor="middle" class="t s">old light brown</text>
+  <rect x="580" y="220" width="95" height="45" class="cav"/>
+  <text x="627" y="247" text-anchor="middle" class="t" font-weight="bold">Br</text>
+  <text x="627" y="290" text-anchor="middle" class="t s">or leave empty</text>
+
+  <text x="20" y="320" class="g s">Bike side read from photos/bike-side-4pin*.jpg. The switch-side plug is the mirror image (left and right swap; top stays top).</text>
+  <text x="20" y="340" class="warn">Confirm P vs R/B by continuity across the mated plug (horn unplugged) before soldering.</text>
+</svg>

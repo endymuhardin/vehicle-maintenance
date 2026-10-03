@@ -71,6 +71,21 @@ Old switch to bike:
 
 ![Old switch to bike-side plugs](old-switch-to-bike.svg)
 
+4-pin cavity positions. The shop's replacement plug has non-matching wire
+colours, so go by position:
+
+![4-pin plug layout](plug-4pin-layout.svg)
+
+The bike-side layout is read from the photos; the two Br cavities are
+interchangeable. Confirm P vs R/B before soldering:
+
+1. Unplug the horn (so P has no path to Br through the horn coil).
+2. Mate the shop's 4-pin plug to the bike plug.
+3. Continuity from the bike's pink wire (back-probe at its plug) to each
+   loose pigtail wire of the shop's plug: the one that beeps is P.
+4. Same with the bike's red wire: the one that beeps is R/B.
+5. Tag both pigtail wires, then reconnect the horn.
+
 ## Splice map
 
 | Old switch wire | Bike-side pin |
