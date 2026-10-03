@@ -14,3 +14,4 @@ node_modules/
 
 # copyrighted reference material (service manuals, diagram crops, video downloads) — local only
 docs/wiring/**/refs/
+.DS_Store
