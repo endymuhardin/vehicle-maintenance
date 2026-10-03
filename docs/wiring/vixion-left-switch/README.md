@@ -76,8 +76,9 @@ colours, so go by position:
 
 ![4-pin plug layout](plug-4pin-layout.svg)
 
-The bike-side layout is read from the photos; the two Br cavities are
-interchangeable. Confirm P vs R/B before soldering:
+Bike side, measured on the bike (mating face, latch on top): TL pink (P),
+TR brown (Br), BL red/black (R/B), BR brown (Br). The two Br cavities are
+interchangeable. To confirm the shop's pigtail wires before soldering:
 
 1. Unplug the horn (so P has no path to Br through the horn coil).
 2. Mate the shop's 4-pin plug to the bike plug.

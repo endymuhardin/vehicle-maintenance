@@ -1,53 +1,84 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 360" font-family="Helvetica, Arial, sans-serif" font-size="13">
-  <rect width="760" height="360" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 520" font-family="Helvetica, Arial, sans-serif" font-size="13">
+  <rect width="820" height="520" fill="#ffffff"/>
   <style>
     .t{fill:#111}
     .g{fill:#777}
-    .h{font-weight:bold;font-size:14px}
+    .h{font-weight:bold;font-size:15px}
+    .b{font-weight:bold}
     .s{font-size:11px}
     .body{fill:#f7f3e3;stroke:#333;stroke-width:1.5}
+    .latch{fill:#d8d2bb;stroke:#333;stroke-width:1.5}
     .cav{fill:#fff;stroke:#333;stroke-width:1.2}
     .warn{fill:#b00020;font-size:12px}
   </style>
 
-  <text x="20" y="28" class="t h">4-pin plug: cavity positions (wire-entry side)</text>
+  <text x="20" y="28" class="t h">4-pin plug: cavity positions (latch on top in every view)</text>
 
-  <!-- bike side -->
-  <text x="40" y="62" class="t" font-weight="bold">Bike side (harness), from the wire end</text>
-  <rect x="80" y="80" width="220" height="40" class="body"/>
-  <text x="190" y="105" text-anchor="middle" class="g s">flange top (narrow part of the T)</text>
-  <rect x="60" y="120" width="260" height="150" class="body"/>
-  <rect x="85" y="135" width="95" height="55" class="cav"/>
-  <circle cx="132" cy="162" r="14" fill="#e58fb0"/>
-  <text x="132" y="210" text-anchor="middle" class="t">P (pink)</text>
-  <rect x="200" y="135" width="95" height="55" class="cav"/>
-  <circle cx="247" cy="162" r="14" fill="#c8303a"/>
-  <text x="247" y="210" text-anchor="middle" class="t">R/B (red)</text>
-  <rect x="85" y="215" width="95" height="45" class="cav" transform="translate(0,5)"/>
-  <circle cx="132" cy="242" r="14" fill="#d9773a"/>
-  <text x="132" y="290" text-anchor="middle" class="t">Br</text>
-  <rect x="200" y="215" width="95" height="45" class="cav" transform="translate(0,5)"/>
-  <circle cx="247" cy="242" r="14" fill="#9a5a34"/>
-  <text x="247" y="290" text-anchor="middle" class="t">Br</text>
+  <!-- ROW 1: bike side -->
+  <text x="20" y="62" class="t b">Bike side (harness)</text>
 
-  <!-- switch side (mirror) -->
-  <text x="420" y="62" class="t" font-weight="bold">Switch side (shop's plug), from its wire end</text>
-  <rect x="460" y="80" width="220" height="40" class="body"/>
-  <text x="570" y="105" text-anchor="middle" class="g s">same edge up</text>
-  <rect x="440" y="120" width="260" height="150" class="body"/>
-  <rect x="465" y="135" width="95" height="55" class="cav"/>
-  <text x="512" y="167" text-anchor="middle" class="t" font-weight="bold">R/B</text>
-  <text x="512" y="210" text-anchor="middle" class="t s">clutch wire 1</text>
-  <rect x="580" y="135" width="95" height="55" class="cav"/>
-  <text x="627" y="167" text-anchor="middle" class="t" font-weight="bold">P</text>
-  <text x="627" y="210" text-anchor="middle" class="t s">old pink</text>
-  <rect x="465" y="220" width="95" height="45" class="cav"/>
-  <text x="512" y="247" text-anchor="middle" class="t" font-weight="bold">Br</text>
-  <text x="512" y="290" text-anchor="middle" class="t s">old light brown</text>
-  <rect x="580" y="220" width="95" height="45" class="cav"/>
-  <text x="627" y="247" text-anchor="middle" class="t" font-weight="bold">Br</text>
-  <text x="627" y="290" text-anchor="middle" class="t s">or leave empty</text>
+  <!-- bike mating face -->
+  <g transform="translate(40,75)">
+    <text x="0" y="0" class="t s">Mating face (the side that plugs in)</text>
+    <rect x="70" y="10" width="60" height="16" class="latch"/>
+    <rect x="20" y="26" width="160" height="150" class="body"/>
+    <rect x="35" y="40" width="60" height="55" class="cav"/><circle cx="65" cy="62" r="11" fill="#e58fb0"/><text x="65" y="88" text-anchor="middle" class="t b s">P</text>
+    <rect x="105" y="40" width="60" height="55" class="cav"/><circle cx="135" cy="62" r="11" fill="#9a5a34"/><text x="135" y="88" text-anchor="middle" class="t b s">Br</text>
+    <rect x="35" y="108" width="60" height="55" class="cav"/><circle cx="65" cy="130" r="11" fill="#c8303a"/><text x="65" y="156" text-anchor="middle" class="t b s">R/B</text>
+    <rect x="105" y="108" width="60" height="55" class="cav"/><circle cx="135" cy="130" r="11" fill="#9a5a34"/><text x="135" y="156" text-anchor="middle" class="t b s">Br</text>
+  </g>
 
-  <text x="20" y="320" class="g s">Bike side read from photos/bike-side-4pin*.jpg. The switch-side plug is the mirror image (left and right swap; top stays top).</text>
-  <text x="20" y="340" class="warn">Confirm P vs R/B by continuity across the mated plug (horn unplugged) before soldering.</text>
+  <!-- bike wire end -->
+  <g transform="translate(300,75)">
+    <text x="0" y="0" class="t s">Wire end (where the wires go in)</text>
+    <rect x="70" y="10" width="60" height="16" class="latch"/>
+    <rect x="20" y="26" width="160" height="150" class="body"/>
+    <rect x="35" y="40" width="60" height="55" class="cav"/><circle cx="65" cy="62" r="11" fill="#9a5a34"/><text x="65" y="88" text-anchor="middle" class="t b s">Br</text>
+    <rect x="105" y="40" width="60" height="55" class="cav"/><circle cx="135" cy="62" r="11" fill="#e58fb0"/><text x="135" y="88" text-anchor="middle" class="t b s">P</text>
+    <rect x="35" y="108" width="60" height="55" class="cav"/><circle cx="65" cy="130" r="11" fill="#9a5a34"/><text x="65" y="156" text-anchor="middle" class="t b s">Br</text>
+    <rect x="105" y="108" width="60" height="55" class="cav"/><circle cx="135" cy="130" r="11" fill="#c8303a"/><text x="135" y="156" text-anchor="middle" class="t b s">R/B</text>
+  </g>
+
+  <text x="560" y="100" class="t s">Measured on the bike, mating face,</text>
+  <text x="560" y="116" class="t s">latch on top:</text>
+  <text x="560" y="138" class="t s">TL pink (P)</text>
+  <text x="560" y="154" class="t s">TR brown (Br)</text>
+  <text x="560" y="170" class="t s">BL red/black (R/B)</text>
+  <text x="560" y="186" class="t s">BR brown (Br)</text>
+  <text x="560" y="210" class="g s">The two Br are the same supply</text>
+  <text x="560" y="224" class="g s">(they beep to each other).</text>
+
+  <!-- ROW 2: switch side -->
+  <text x="20" y="300" class="t b">Switch side (the shop's plug, wire colours don't match)</text>
+
+  <!-- switch mating face -->
+  <g transform="translate(40,313)">
+    <text x="0" y="0" class="t s">Mating face</text>
+    <rect x="70" y="10" width="60" height="16" class="latch"/>
+    <rect x="20" y="26" width="160" height="150" class="body"/>
+    <rect x="35" y="40" width="60" height="55" class="cav"/><text x="65" y="72" text-anchor="middle" class="t b">Br</text>
+    <rect x="105" y="40" width="60" height="55" class="cav"/><text x="135" y="72" text-anchor="middle" class="t b">P</text>
+    <rect x="35" y="108" width="60" height="55" class="cav"/><text x="65" y="140" text-anchor="middle" class="t b">Br</text>
+    <rect x="105" y="108" width="60" height="55" class="cav"/><text x="135" y="140" text-anchor="middle" class="t b">R/B</text>
+  </g>
+
+  <!-- switch wire end -->
+  <g transform="translate(300,313)">
+    <text x="0" y="0" class="t s">Wire end (where you splice)</text>
+    <rect x="70" y="10" width="60" height="16" class="latch"/>
+    <rect x="20" y="26" width="160" height="150" class="body"/>
+    <rect x="35" y="40" width="60" height="55" class="cav"/><text x="65" y="66" text-anchor="middle" class="t b">P</text><text x="65" y="84" text-anchor="middle" class="t s">old pink</text>
+    <rect x="105" y="40" width="60" height="55" class="cav"/><text x="135" y="66" text-anchor="middle" class="t b">Br</text><text x="135" y="84" text-anchor="middle" class="t s">old lt brown</text>
+    <rect x="35" y="108" width="60" height="55" class="cav"/><text x="65" y="134" text-anchor="middle" class="t b">R/B</text><text x="65" y="152" text-anchor="middle" class="t s">clutch 1</text>
+    <rect x="105" y="108" width="60" height="55" class="cav"/><text x="135" y="134" text-anchor="middle" class="t b">Br</text><text x="135" y="152" text-anchor="middle" class="t s">or empty</text>
+  </g>
+
+  <text x="560" y="340" class="t s">The switch plug's mating face is the</text>
+  <text x="560" y="356" class="t s">mirror of the bike's mating face.</text>
+  <text x="560" y="380" class="t s">So the switch plug seen from its wire</text>
+  <text x="560" y="396" class="t s">end matches the bike plug seen from</text>
+  <text x="560" y="412" class="t s">its mating face.</text>
+  <text x="560" y="436" class="t s">Old light brown can go in either Br.</text>
+
+  <text x="20" y="505" class="warn">R/B: clutch switch only. The horn's black wire never goes here.</text>
 </svg>
