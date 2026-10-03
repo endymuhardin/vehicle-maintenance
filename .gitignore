@@ -11,3 +11,6 @@ migration-v2.sql
 # build/runtime
 node_modules/
 .wrangler/
+
+# copyrighted reference material (service manuals, diagram crops, video downloads) — local only
+docs/wiring/**/refs/
