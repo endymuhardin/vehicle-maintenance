@@ -137,21 +137,21 @@ For each row:
 3. Do the beep check with the joint twisted but not yet soldered.
 4. Solder only if it beeps as expected.
 
-"Replacement" means the replacement plug, seen from its mating face.
+| Step | 3C1 wire | Function | Connect to | Probe 1 | Probe 2 | Operate | Beep when |
+|---|---|---|---|---|---|---|---|
+| 1 | blue (L) | small light | nothing: insulate the end | – | – | – | – |
+| 2 | green (G) | low beam | nothing: insulate the end | – | – | – | – |
+| 3 | dark brown (Ch) | left signal | 3-pin, left position (Ch pigtail) | 3-pin left terminal | 3C1 brown/white wire end | turn switch | at L; no beep at centre or R |
+| 4 | dark green (Dg) | right signal | 3-pin, right position (Dg pigtail) | 3-pin right terminal | 3C1 brown/white wire end | turn switch | at R; no beep at centre or L |
+| 5 | brown/white (Br/W) | flasher 12 V | female bullet | Br/W bullet | 3-pin left terminal (Ch, step 3) | turn switch | at L; no beep at centre |
+| 6 | yellow (Y) | high beam | female bullet | Y bullet | 3C1 light brown wire end | PASS button | while pressed; no beep released (high/low at LO) |
+| 7 | pink (P) | horn | 4-pin, top-right position (P pigtail) | 4-pin top-right terminal | 3C1 black wire end | horn button | while pressed; no beep released |
+| 8 | black, one branch (B) | horn ground | female bullet; trim the other branch and insulate it | B bullet | 4-pin top-right terminal (P, step 7) | horn button | while pressed; no beep released |
+| 9 | light brown (Br) | 12 V for high beam and PASS | 4-pin, top-left position (Br pigtail); bottom-left stays empty | 4-pin top-left terminal | Y bullet (step 6) | PASS button, then light switch at ON + high/low | PASS pressed; also ON + HI. No beep at ON + LO with PASS released |
+| 10 | clutch wire 2 | clutch ground | 3-pin, middle position (B/W pigtail) | 3-pin middle terminal | the other clutch wire end | clutch lever | lever pulled; no beep released |
+| 11 | clutch wire 1 | starter safety | 4-pin, bottom-right position (R/B pigtail) | 4-pin bottom-right terminal | 3-pin middle terminal (B/W, step 10) | clutch lever | lever pulled; no beep released |
 
-| Step | 3C1 wire | Function | Connect to | Beep check before soldering |
-|---|---|---|---|---|
-| 1 | blue (L) | small light | nothing: insulate the end | none |
-| 2 | green (G) | low beam | nothing: insulate the end | none |
-| 3 | dark brown (Ch) | left signal | 3-pin, left position on the replacement plug (Ch pigtail) | that terminal ↔ 3C1 brown/white end, signal left |
-| 4 | dark green (Dg) | right signal | 3-pin, right position on the replacement plug (Dg pigtail) | that terminal ↔ 3C1 brown/white end, signal right |
-| 5 | brown/white (Br/W) | flasher 12 V | female bullet | bullet ↔ the Ch terminal (step 3), signal left |
-| 6 | yellow (Y) | high beam | female bullet | bullet ↔ 3C1 light brown end, PASS pressed |
-| 7 | pink (P) | horn | 4-pin, top-right position on the replacement plug (P pigtail) | that terminal ↔ 3C1 black end, horn pressed |
-| 8 | black, one branch (B) | horn ground | female bullet; trim the other branch and insulate it | bullet ↔ the P terminal (step 7), horn pressed |
-| 9 | light brown (Br) | 12 V for high beam and PASS | 4-pin, top-left position on the replacement plug (Br pigtail); bottom-left stays empty | that terminal ↔ Y bullet (step 6), PASS pressed, then ON + HI |
-| 10 | clutch wire 2 | clutch ground | 3-pin, middle position on the replacement plug (B/W pigtail) | that terminal ↔ the other clutch wire end, lever pulled |
-| 11 | clutch wire 1 | starter safety | 4-pin, bottom-right position on the replacement plug (R/B pigtail) | that terminal ↔ the B/W terminal (step 10): lever pulled beeps, released doesn't |
+Positions refer to the replacement plug, mating face toward you, latch on top.
 
 The replacement plug is mirrored: Ch sits on its left and Dg on its right.
 On the bike side they're the other way round.
