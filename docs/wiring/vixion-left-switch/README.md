@@ -71,15 +71,16 @@ Old switch to bike:
 
 ![Old switch to bike-side plugs](old-switch-to-bike.svg)
 
-4-pin cavity positions. The shop's replacement plug has non-matching wire
+4-pin and 3-pin cavity positions. The shop's replacement plug has non-matching wire
 colours, so go by position:
 
-![4-pin plug layout](plug-4pin-layout.svg)
+![4-pin and 3-pin plug layout](plug-layout.svg)
 
 Bike side, measured on the bike (mating face, latch on top): TL pink (P),
 TR brown (Br), BL red/black (R/B), BR brown (Br). Resistance, ignition off,
 horn connected: P–Br 4 Ω (through the horn coil), R/B–Br 1.3 MΩ (open). The
-two Br cavities are interchangeable. To confirm the shop's pigtail wires before soldering:
+two Br cavities are interchangeable. 3-pin, bike side, mating face, latch
+up: green (Dg), black (B/W), brown (Ch), left to right. To confirm the shop's pigtail wires before soldering:
 
 1. Unplug the horn (so P has no path to Br through the horn coil).
 2. Mate the shop's 4-pin plug to the bike plug.
