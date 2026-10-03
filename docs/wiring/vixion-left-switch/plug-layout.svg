@@ -49,7 +49,7 @@
   <text x="560" y="224" class="g s">(they beep to each other).</text>
 
   <!-- ROW 2: switch side -->
-  <text x="20" y="300" class="t b">Switch side (the shop's plug, wire colours don't match)</text>
+  <text x="20" y="300" class="t b">Switch side (replacement plug; pigtail colours arbitrary)</text>
 
   <!-- switch mating face -->
   <g transform="translate(40,313)">
@@ -93,7 +93,7 @@
     <rect x="130" y="36" width="50" height="55" class="cav"/><circle cx="155" cy="56" r="10" fill="#5a3a22"/><text x="155" y="83" text-anchor="middle" class="t b s">Ch</text>
   </g>
   <g transform="translate(300,553)">
-    <text x="0" y="0" class="t s">Shop plug, mating face (mirror)</text>
+    <text x="0" y="0" class="t s">Replacement plug, mating face (mirror)</text>
     <rect x="80" y="10" width="40" height="14" class="latch"/>
     <rect x="10" y="24" width="180" height="80" class="body"/>
     <rect x="20" y="36" width="50" height="55" class="cav"/><text x="45" y="60" text-anchor="middle" class="t b">Ch</text><text x="45" y="80" text-anchor="middle" class="t s">dk brown</text>
@@ -103,7 +103,7 @@
   <text x="560" y="580" class="t s">Measured on the bike, mating face,</text>
   <text x="560" y="596" class="t s">latch up: green, black, brown</text>
   <text x="560" y="612" class="t s">(left to right).</text>
-  <text x="560" y="636" class="t s">Shop plug: identify each cavity's</text>
+  <text x="560" y="636" class="t s">Replacement plug: identify each cavity's</text>
   <text x="560" y="652" class="t s">pigtail wire by continuity, then</text>
   <text x="560" y="668" class="t s">splice by the labels shown.</text>
 
