@@ -57,6 +57,12 @@ row per item × action (`periksa|ganti|setel|bersihkan|lumasi`) × interval
 completing visit's `vendor`) and free-text `spec` (part no, capacity, torque;
 shown in DIY reminders as shopping info).
 
+- **Procedure**: optional `procedure_url` — absolute https URL to a
+  step-by-step markdown file under `docs/procedures/` (viewed on GitHub).
+  Linked as "Prosedur" on the plan page, the due list and the Telegram
+  digest. Set at creation, or on an existing row via SQL:
+  `UPDATE plan_items SET procedure_url = '<url>' WHERE id = <id>`.
+
 - **Completion** = posting a visit line item carrying `plan_item_id`
   (validated against the visit's vehicle, 400 on mismatch). Last-done is the
   linked item from the visit with the greatest (date, odometer); DIY work is

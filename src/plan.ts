@@ -13,6 +13,7 @@ export type PlanItemRow = {
   interval_months: number | null
   doer: Doer
   spec: string | null
+  procedure_url: string | null
   baseline_date: string | null
   baseline_km: number | null
 }

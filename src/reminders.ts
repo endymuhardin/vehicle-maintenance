@@ -56,12 +56,17 @@ async function sendTelegram(env: Env, text: string): Promise<void> {
   const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
+    body: JSON.stringify({
+      chat_id: chatId, text, parse_mode: 'HTML', link_preview_options: { is_disabled: true },
+    }),
   })
   if (!res.ok) {
     throw new Error(`telegram sendMessage failed: ${res.status} ${await res.text()}`)
   }
 }
+
+// Telegram HTML mode: & and " must be entity-escaped inside an attribute.
+const hrefAttr = (url: string) => url.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
 
 const km = (n: number) => `${n.toLocaleString('id-ID')} km`
 
@@ -81,7 +86,8 @@ function planLine(d: DuePlanItem): string {
   }
   const flag = d.status === 'overdue' ? '🔴' : '🟡'
   const spec = d.spec ? ` · ${d.spec}` : ''
-  return `${flag} <b>${d.vehicle_name}</b>: ${d.action} ${d.item} — ${parts.join(', ')}${spec}`
+  const procedure = d.procedure_url ? ` · <a href="${hrefAttr(d.procedure_url)}">prosedur</a>` : ''
+  return `${flag} <b>${d.vehicle_name}</b>: ${d.action} ${d.item} — ${parts.join(', ')}${spec}${procedure}`
 }
 
 function staleLine(s: StaleOdo): string {

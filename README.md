@@ -24,7 +24,8 @@ vehicles (name, status: active|sold)
   │     └── attachments (receipt photos/documents, stored in R2)
   ├── odometer_logs (date, odometer_km, liters?, total?)  ← refuels + readings
   └── plan_items (item, action, interval_km?, interval_months?,
-                  doer: diy|bengkel, spec?, baseline_date?, baseline_km?)
+                  doer: diy|bengkel, spec?, procedure_url?,
+                  baseline_date?, baseline_km?)
 ```
 
 Prices are full rupiah integers. Visits with a shared `label` form a group
@@ -36,7 +37,8 @@ interval, marked DIY or bengkel. Last-done derives from line items linked via
 `plan_item_id`; the next due (km/date) recomputes automatically. Interval-less
 rows act as consumable trackers (installed part + age). The due list grouped
 by doer doubles as a DIY shopping list (spec shown) and a work order to
-dictate at a street shop.
+dictate at a street shop. A plan item can link a step-by-step procedure
+(`procedure_url`, markdown under `docs/procedures/`).
 
 A checkpoint or plan item becomes *due* when its date falls within
 `REMINDER_DAYS_AHEAD` days, or its km is within `REMINDER_KM_AHEAD` of the

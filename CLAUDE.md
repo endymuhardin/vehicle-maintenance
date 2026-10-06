@@ -32,6 +32,9 @@ diy|bengkel). A receipt item that completes a plan task must carry
 last-done; one-shot `due_date`/`due_km` is only for intervals outside the
 plan. DIY work = a normal visit with `vendor: "DIY"`. Plan items are created
 via API, edited/deleted via direct SQL.
+Step-by-step procedures live in `docs/procedures/*.md` (repo is public — no
+plates/VINs/personal data); link one via `plan_items.procedure_url` (GitHub
+blob URL on `main`).
 
 ## Conventions
 

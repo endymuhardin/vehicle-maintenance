@@ -260,6 +260,7 @@ export const PlanDueList: FC<{ duePlan: DuePlanItem[]; stale: StaleOdo[] }> = ({
                   <span class="due-desc">{d.action} {d.item}</span>
                   <span class="due-when">{planWhen(d)}</span>
                   {d.spec ? <span class="due-spec">{d.spec}</span> : null}
+                  {d.procedure_url ? <a href={d.procedure_url} class="procedure-link" target="_blank" rel="noopener">Prosedur</a> : null}
                 </div>
               </li>
             ))}
@@ -433,6 +434,7 @@ const PlanSection: FC<{ plan: ComputedPlanItem[]; latestKm: number | null; today
                   </div>
                   {p.installed_desc ? <div class="plan-spec">{p.installed_desc}</div> : null}
                   {p.spec ? <div class="plan-spec">{p.spec}</div> : null}
+                  {p.procedure_url ? <a href={p.procedure_url} class="procedure-link" target="_blank" rel="noopener">Prosedur</a> : null}
                 </td>
                 <td><span class={`chip ${p.status}`}>{PLAN_STATUS_TEXT[p.status]}</span></td>
                 <td class="mono">

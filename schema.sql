@@ -38,6 +38,7 @@ CREATE TABLE plan_items (
   interval_months INTEGER,
   doer TEXT NOT NULL CHECK (doer IN ('diy', 'bengkel')),
   spec TEXT,                   -- part no, capacity, torque, brand
+  procedure_url TEXT,          -- https URL to step-by-step procedure (docs/procedures/*.md)
   baseline_date TEXT,          -- ISO, explicit last-done when no linked history
   baseline_km INTEGER
 );

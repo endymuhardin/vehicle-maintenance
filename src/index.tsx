@@ -280,8 +280,21 @@ type InsertPlanItem = {
   interval_months: number | null
   doer: Doer
   spec: string | null
+  procedure_url: string | null
   baseline_date: string | null
   baseline_km: number | null
+}
+
+// Absolute https URL only; it is rendered as a link on the plan page and in
+// the Telegram digest.
+function needHttpsUrl(v: string, key: string): void {
+  let u: URL
+  try {
+    u = new URL(v)
+  } catch {
+    throw new HTTPException(400, { message: `${key} must be an absolute URL` })
+  }
+  if (u.protocol !== 'https:') throw new HTTPException(400, { message: `${key} must be an https URL` })
 }
 
 function parseApiPlanItem(raw: unknown, vehicleId: number): InsertPlanItem {
@@ -299,6 +312,8 @@ function parseApiPlanItem(raw: unknown, vehicleId: number): InsertPlanItem {
   }
   const baselineDate = jsonOptString(obj, 'baseline_date')
   if (baselineDate !== null) needIsoDate(baselineDate, 'baseline_date')
+  const procedureUrl = jsonOptString(obj, 'procedure_url')
+  if (procedureUrl !== null) needHttpsUrl(procedureUrl, 'procedure_url')
   return {
     vehicle_id: vehicleId,
     item: jsonString(obj, 'item'),
@@ -307,6 +322,7 @@ function parseApiPlanItem(raw: unknown, vehicleId: number): InsertPlanItem {
     interval_months: jsonOptNumber(obj, 'interval_months'),
     doer: doer as Doer,
     spec: jsonOptString(obj, 'spec'),
+    procedure_url: procedureUrl,
     baseline_date: baselineDate,
     baseline_km: jsonOptNumber(obj, 'baseline_km'),
   }
@@ -315,11 +331,11 @@ function parseApiPlanItem(raw: unknown, vehicleId: number): InsertPlanItem {
 function insertPlanItemStmt(env: Env, p: InsertPlanItem) {
   return env.DB.prepare(`
     INSERT INTO plan_items (vehicle_id, item, action, interval_km, interval_months,
-      doer, spec, baseline_date, baseline_km)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      doer, spec, procedure_url, baseline_date, baseline_km)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     p.vehicle_id, p.item, p.action, p.interval_km, p.interval_months,
-    p.doer, p.spec, p.baseline_date, p.baseline_km,
+    p.doer, p.spec, p.procedure_url, p.baseline_date, p.baseline_km,
   )
 }
 
